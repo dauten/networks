@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <math.h>
 
 #define PORT "3490"  // the port users will be connecting to
 
@@ -131,14 +132,14 @@ int main(void)
 	    int flag = 1;
 	    while(flag){
 
-		printf("\nlistening\n");
+		//printf("\nlistening\n");
 		numbytes = recv(new_fd, buf, 100, 0);
 		if(numbytes == -1 || numbytes == 0){
 		    perror("recv");
 		    exit(1);
 		}
 		buf[numbytes] = '\0';
-		printf("%s",buf);
+		//printf("%s",buf);
 		char* split= strtok(buf, " "); //first token
 
 
@@ -175,12 +176,17 @@ int main(void)
 			else if(  strcmp(split, "AREA") == 0 )
 			{
 				if(state == 2){
-				    sprintf(split, "250-Circle");
+		
+				    char* s2 = strtok(NULL, " ");
+				
+				    sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
 				else if(state == 4){
-				    sprintf(split, "250-Cylinder");
+				    char* s2 = strtok(NULL, " ");
+				    char* s3 = strtok(NULL, " ");
+				    sprintf(split, "250-Cylinder %f",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)) );
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
@@ -193,7 +199,8 @@ int main(void)
 			else if(  strcmp(split, "CIRC") == 0 )
 			{
 				if(state == 2){
-				    sprintf(split, "250-Circle's Circumference");
+				    char* s2 = strtok(NULL, " ");
+				    sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
@@ -207,7 +214,8 @@ int main(void)
 			else if(  strcmp(split, "VOL") == 0 )
 			{
 				if(state == 3){
-				    sprintf(split, "250-Sphere's Volume");
+				    char* s2 = strtok(NULL, " ");
+				    sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
@@ -221,7 +229,8 @@ int main(void)
 			else if(  strcmp(split, "RAD") == 0 )
 			{
 				if(state == 3){
-				    sprintf(split, "250-Sphere's Radius");
+				    char* s2 = strtok(NULL, " ");
+				    sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
@@ -235,7 +244,9 @@ int main(void)
 			else if(  strcmp(split, "HGT") == 0 )
 			{
 				if(state == 4){
-				    sprintf(split, "250-Cylinder's Height");
+				    char* s2 = strtok(NULL, " ");
+				    char* s3 = strtok(NULL, " ");
+				    sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
 				    if (send(new_fd, split, 40 , 0) == -1)
 					perror("send");
 				}
