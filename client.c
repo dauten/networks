@@ -90,9 +90,9 @@ int main(int argc, char *argv[])
     while(flag)
     {
 	// while we have not terminated connection
-	printf("COMMAND ME:\n");
+
 	fgets(input, 16, stdin);
-	sprintf(input, "%s ", input);
+	sprintf(input, "%s  ", input);
 
 	if (send(sockfd, input, 16 , 0) == -1)
 	        perror("send");
@@ -104,6 +104,11 @@ int main(int argc, char *argv[])
 
         buf[numbytes] = '\0';
         printf("client: received '%s'\n",buf);
+
+	if(strcmp(buf, "200 BYE")==0){
+		printf("Exiting, with GRACE");
+		flag=0;
+	}
 
     }
 

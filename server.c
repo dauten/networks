@@ -131,43 +131,42 @@ int main(void)
 	    int flag = 1;
 	    while(flag){
 
-		printf("\nlistening");
+		printf("\nlistening\n");
 		numbytes = recv(new_fd, buf, 100, 0);
 		if(numbytes == -1 || numbytes == 0){
 		    perror("recv");
 		    exit(1);
 		}
 		buf[numbytes] = '\0';
-
+		printf("%s",buf);
 		char* split= strtok(buf, " "); //first token
 
 
-
 		if(split[0]!=0){
-			if(  strcmp(split, "HELP") == 0)
+			if(  strcmp(split, "HELP") == 10)
 			{
 			    if (send(new_fd, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0) == -1)
 				perror("send");
 			}
-			else if(  strcmp(split, "BYE") == 0)
+			else if(  strcmp(split, "BYE") == 10)
 			{
-			    if (send(new_fd, "bye bye", 10 , 0) == -1)
+			    if (send(new_fd, "200 BYE", 10 , 0) == -1)
 				perror("send");
 				flag = 0;
 			}	
-			else if(  strcmp(split, "CIRCLE") == 0)
+			else if(  strcmp(split, "CIRCLE") == 10)
 			{
 			    if (send(new_fd, "210 CIRCLE ready", 10 , 0) == -1)
 				perror("send");
 			    state = 2;
 			}
-			else if(  strcmp(split, "SPHERE") == 0)
+			else if(  strcmp(split, "SPHERE") == 10)
 			{
 			    if (send(new_fd, "220 SPHERE ready", 10 , 0) == -1)
 				perror("send");
 			    state = 3;
 			}
-			else if(  strcmp(split, "CYLINDER") == 0)
+			else if(  strcmp(split, "CYLINDER") == 10)
 			{
 			    if (send(new_fd, "230 CYLINDER ready", 12 , 0) == -1)
 				perror("send");
@@ -249,7 +248,7 @@ int main(void)
 			}
 			else
 			{
-			    if (send(new_fd, "500 - Unrecognized Command", 20 , 0) == -1)
+			    if (send(new_fd, "500 - Unrecognized Command or missing args", 40 , 0) == -1)
 				perror("send");
 			}	
 
