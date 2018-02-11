@@ -85,21 +85,27 @@ int main(int argc, char *argv[])
     buf[numbytes] = '\0';
     printf("client: received '%s'\n",buf);
     
-    char input[100];
+    char input[16];
     int flag = 1;
     while(flag)
     {
 	// while we have not terminated connection
-	fgets(input, 100, stdin);
-	send(sockfd, input, 100, 0);
+	printf("COMMAND ME:\n");
+	fgets(input, 16, stdin);
+
+	if(strcmp(input, "hello") == 0)
+		printf("the same");
+	if (send(sockfd, input, 16 , 0) == -1)
+	        perror("send");
 
         if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
             perror("recv");
-            exit(1);
+	    printf("o no exiting");
         }
 
         buf[numbytes] = '\0';
         printf("client: received '%s'\n",buf);
+
     }
 
     close(sockfd);

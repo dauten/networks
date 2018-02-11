@@ -42,7 +42,7 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(void)
 {
-    int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
+    int sockfd, new_fd, numbytes;  // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
@@ -110,7 +110,7 @@ int main(void)
         sin_size = sizeof their_addr;
         new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
         if (new_fd == -1) {
-           // perror("accept");
+            perror("accept");
             continue;
         }
 
@@ -119,25 +119,60 @@ int main(void)
             s, sizeof s);
         printf("server: got connection from %s\n", s);
 
+
+
         if (!fork()) { // this is the child process
             close(sockfd); // child doesn't need the listener
             if (send(new_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
 
 
-
+	    char buf[100];
 	    int flag = 1;
 	    while(flag){
-		char buf[100];
-		// while we have not terminated connection
-		recv(new_fd, buf, 100, 0);
-		printf("from %s(%s) got: %s",buf);
-                if (send(new_fd, "Hello, world!", 13, 0) == -1)
-                    perror("send");
+
+		printf("\nI am now listening\n");
+		numbytes = recv(new_fd, buf, 100, 0);
+		if(numbytes == -1 || numbytes == 0){
+		    perror("recv");
+		    exit(1);
+		}
+
+
+		buf[numbytes] = '\0';
+		printf("\n%u\n",(strcmp(buf,"HELO")));
+
+		if(buf[0]!=0){
+			printf("\nfrom %s client: %s",s ,buf);
+			if(  strcmp(buf, "HELO") == 10)
+			{
+			    if (send(new_fd, "And hello to you too :)", 20 , 0) == -1)
+				perror("send");
+			}
+			else if(  strcmp(buf, "HELP") == 10)
+			{
+			    if (send(new_fd, "<usage>", 10 , 0) == -1)
+				perror("send");
+			}
+			else if(  strcmp(buf, "BYE") == 10)
+			{
+			    if (send(new_fd, "bye bye", 10 , 0) == -1)
+				perror("send");
+				flag = 0;
+			}	
+			else
+			{
+			    if (send(new_fd, "excuse me?", 10 , 0) == -1)
+				perror("send");
+			}	
+
+		}
+		
 	    }
 
 
             close(new_fd);
+	    exit(0);
             
         }
 
