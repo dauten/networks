@@ -92,13 +92,12 @@ int main(int argc, char *argv[])
 	// while we have not terminated connection
 	printf("COMMAND ME:\n");
 	fgets(input, 16, stdin);
+	sprintf(input, "%s ", input);
 
-	if(strcmp(input, "hello") == 0)
-		printf("the same");
 	if (send(sockfd, input, 16 , 0) == -1)
 	        perror("send");
 
-        if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+        if ((numbytes = recv(sockfd, buf, 100, 0)) == -1) {
             perror("recv");
 	    printf("o no exiting");
         }

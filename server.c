@@ -126,43 +126,130 @@ int main(void)
             if (send(new_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
 
-
+	    int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
 	    char buf[100];
 	    int flag = 1;
 	    while(flag){
 
-		printf("\nI am now listening\n");
+		printf("\nlistening");
 		numbytes = recv(new_fd, buf, 100, 0);
 		if(numbytes == -1 || numbytes == 0){
 		    perror("recv");
 		    exit(1);
 		}
-
-
 		buf[numbytes] = '\0';
-		printf("\n%u\n",(strcmp(buf,"HELO")));
 
-		if(buf[0]!=0){
-			printf("\nfrom %s client: %s",s ,buf);
-			if(  strcmp(buf, "HELO") == 10)
+		char* split= strtok(buf, " "); //first token
+
+
+
+		if(split[0]!=0){
+			if(  strcmp(split, "HELP") == 0)
 			{
-			    if (send(new_fd, "And hello to you too :)", 20 , 0) == -1)
+			    if (send(new_fd, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0) == -1)
 				perror("send");
 			}
-			else if(  strcmp(buf, "HELP") == 10)
-			{
-			    if (send(new_fd, "<usage>", 10 , 0) == -1)
-				perror("send");
-			}
-			else if(  strcmp(buf, "BYE") == 10)
+			else if(  strcmp(split, "BYE") == 0)
 			{
 			    if (send(new_fd, "bye bye", 10 , 0) == -1)
 				perror("send");
 				flag = 0;
 			}	
+			else if(  strcmp(split, "CIRCLE") == 0)
+			{
+			    if (send(new_fd, "210 CIRCLE ready", 10 , 0) == -1)
+				perror("send");
+			    state = 2;
+			}
+			else if(  strcmp(split, "SPHERE") == 0)
+			{
+			    if (send(new_fd, "220 SPHERE ready", 10 , 0) == -1)
+				perror("send");
+			    state = 3;
+			}
+			else if(  strcmp(split, "CYLINDER") == 0)
+			{
+			    if (send(new_fd, "230 CYLINDER ready", 12 , 0) == -1)
+				perror("send");
+			    state = 4;
+			}
+			else if(  strcmp(split, "AREA") == 0 )
+			{
+				if(state == 2){
+				    sprintf(split, "250-Circle");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+				else if(state == 4){
+				    sprintf(split, "250-Cylinder");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+				else{
+				    sprintf(split, "503-Out of Order");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+			}
+			else if(  strcmp(split, "CIRC") == 0 )
+			{
+				if(state == 2){
+				    sprintf(split, "250-Circle's Circumference");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+
+				else{
+				    sprintf(split, "503-Out of Order");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+			}
+			else if(  strcmp(split, "VOL") == 0 )
+			{
+				if(state == 3){
+				    sprintf(split, "250-Sphere's Volume");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+
+				else{
+				    sprintf(split, "503-Out of Order");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+			}
+			else if(  strcmp(split, "RAD") == 0 )
+			{
+				if(state == 3){
+				    sprintf(split, "250-Sphere's Radius");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+
+				else{
+				    sprintf(split, "503-Out of Order");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+			}
+			else if(  strcmp(split, "HGT") == 0 )
+			{
+				if(state == 4){
+				    sprintf(split, "250-Cylinder's Height");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+
+				else{
+				    sprintf(split, "503-Out of Order");
+				    if (send(new_fd, split, 40 , 0) == -1)
+					perror("send");
+				}
+			}
 			else
 			{
-			    if (send(new_fd, "excuse me?", 10 , 0) == -1)
+			    if (send(new_fd, "500 - Unrecognized Command", 20 , 0) == -1)
 				perror("send");
 			}	
 
