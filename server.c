@@ -144,30 +144,30 @@ int main(void)
 
 
 		if(split[0]!=0){
-			if(  strcmp(split, "HELP") == 10)
+			if(  strcmp(split, "HELP") == 0)
 			{
 			    if (send(new_fd, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0) == -1)
 				perror("send");
 			}
-			else if(  strcmp(split, "BYE") == 10)
+			else if(  strcmp(split, "BYE") == 0)
 			{
 			    if (send(new_fd, "200 BYE", 10 , 0) == -1)
 				perror("send");
 				flag = 0;
 			}	
-			else if(  strcmp(split, "CIRCLE") == 10)
+			else if(  strcmp(split, "CIRCLE") == 0)
 			{
 			    if (send(new_fd, "210 CIRCLE ready", 10 , 0) == -1)
 				perror("send");
 			    state = 2;
 			}
-			else if(  strcmp(split, "SPHERE") == 10)
+			else if(  strcmp(split, "SPHERE") == 0)
 			{
 			    if (send(new_fd, "220 SPHERE ready", 10 , 0) == -1)
 				perror("send");
 			    state = 3;
 			}
-			else if(  strcmp(split, "CYLINDER") == 10)
+			else if(  strcmp(split, "CYLINDER") == 0)
 			{
 			    if (send(new_fd, "230 CYLINDER ready", 12 , 0) == -1)
 				perror("send");
@@ -178,17 +178,29 @@ int main(void)
 				if(state == 2){
 		
 				    char* s2 = strtok(NULL, " ");
-				
-				    sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+					
+				    if(atoi(s2) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }
+				    else{
+					    sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
+					    if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 				else if(state == 4){
 				    char* s2 = strtok(NULL, " ");
 				    char* s3 = strtok(NULL, " ");
-				    sprintf(split, "250-Cylinder %f",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)) );
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+					printf(":%f:", atof(s2));
+				    if(atoi(s2) == 0 || atoi(s3) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }else{
+				    	sprintf(split, "250-Cylinder %f (%f)",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)),atof(s3) );
+				    	if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 				else{
 				    sprintf(split, "503-Out of Order");
@@ -200,9 +212,15 @@ int main(void)
 			{
 				if(state == 2){
 				    char* s2 = strtok(NULL, " ");
-				    sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+				    if(atoi(s2) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }
+			  	    else{
+				    	sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
+				    	if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 
 				else{
@@ -214,10 +232,15 @@ int main(void)
 			else if(  strcmp(split, "VOL") == 0 )
 			{
 				if(state == 3){
-				    char* s2 = strtok(NULL, " ");
-				    sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+			    	    char* s2 = strtok(NULL, " ");
+				    if(atoi(s2) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }else{  
+					    sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
+					    if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 
 				else{
@@ -230,9 +253,15 @@ int main(void)
 			{
 				if(state == 3){
 				    char* s2 = strtok(NULL, " ");
-				    sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+
+				    if(atoi(s2) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }else{  
+					    sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
+					    if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 
 				else{
@@ -246,9 +275,14 @@ int main(void)
 				if(state == 4){
 				    char* s2 = strtok(NULL, " ");
 				    char* s3 = strtok(NULL, " ");
-				    sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
-				    if (send(new_fd, split, 40 , 0) == -1)
-					perror("send");
+				    if(atoi(s2) == 0 || atoi(s3) == 0){
+					    if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+						perror("send");
+				    }else{  
+					    sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
+					    if (send(new_fd, split, 40 , 0) == -1)
+						perror("send");
+				    }
 				}
 
 				else{
@@ -259,7 +293,7 @@ int main(void)
 			}
 			else
 			{
-			    if (send(new_fd, "500 - Unrecognized Command or missing args", 40 , 0) == -1)
+			    if (send(new_fd, "500 - Unrecognized Command or missing args", 50 , 0) == -1)
 				perror("send");
 			}	
 
