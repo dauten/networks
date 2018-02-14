@@ -20,25 +20,20 @@ void die(char *s)
 int main(void)
 {
     struct sockaddr_in theirUDPSocket;
-    int s, i, slen=sizeof(theirUDPSocket);
-    char buf[BUFLEN];
-    char message[BUFLEN];
- 
+    int sock, isock, slen=sizeof(theirUDPSocket);
     if ( (s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
-        die("socket");
+        perror(s);
+        exit(1);
     }
- 
     memset((char *) &theirUDPSocket, 0, sizeof(theirUDPSocket));
     theirUDPSocket.sin_family = AF_INET;
     theirUDPSocket.sin_port = htons(PORT);
-     
     if (inet_aton(SERVER , &theirUDPSocket.sin_addr) == 0) 
     {
         fprintf(stderr, "inet_aton() failed\n");
         exit(1);
     }
- 
     while(1)
     {
         printf("Enter message : ");
@@ -47,7 +42,8 @@ int main(void)
         //send the message
         if (sendto(s, message, strlen(message) , 0 , (struct sockaddr *) &theirUDPSocket, slen)==-1)
         {
-            die("sendto()");
+   	     perror(s);
+             exit(1);
         }
          
         //receive a reply and print it

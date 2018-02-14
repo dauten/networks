@@ -14,7 +14,9 @@
 
 #include <arpa/inet.h>
 
-
+#define SERVER "127.0.0.1"
+#define BUFLEN 512  //Max length of buffer
+#define PORT 9000   //The port on which to send data
 #define MAXDATASIZE 100 // max number of bytes we can get at once 
 
 // get sockaddr, IPv4 or IPv6:
@@ -34,6 +36,97 @@ int main(int argc, char *argv[])
     struct addrinfo hints, *servinfo, *p;
     int rv;
     char s[INET6_ADDRSTRLEN];
+
+
+    
+    char input[16];
+    int flag = 1;
+
+
+
+
+
+   
+ 
+    // first we will create the UDP socket and stuff
+
+    struct sockaddr_in theirUDPSocket;
+    int sock, isock, slen=sizeof(theirUDPSocket);
+    if ( (sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+    {
+        perror(s);
+        exit(1);
+    }
+    memset((char *) &theirUDPSocket, 0, sizeof(theirUDPSocket));
+    theirUDPSocket.sin_family = AF_INET;
+    theirUDPSocket.sin_port = htons(PORT);
+    if (inet_aton(SERVER , &theirUDPSocket.sin_addr) == 0) 
+    {
+        fprintf(stderr, "inet_aton() failed\n");
+        exit(1);
+    }
+
+
+         
+   char *isudp;
+   // then we get the user's first command and attempt to communicate with the server
+
+
+    printf("hey, do you want this to be UDP?\n");
+    fgets(isudp,3,stdin);
+    while(atoi(isudp))
+    {
+	// while we have not terminated connection
+        printf("aight now give a command\n");
+	fgets(input, 16, stdin);
+	for(int i = 0; i < 16; i++){
+		if(input[i] == '\n'){
+			input[i] = ' ';
+			input[i+1] = '\n';
+			input[i+2] = '\0';
+			i = 16;
+			break;
+		}
+	}
+
+	printf("I'm going to try to send it now\n");
+        if (sendto(sock, input, strlen(input) , 0 , (struct sockaddr *) &theirUDPSocket, slen)==-1)
+        {
+             perror(s);
+             exit(1);
+        }
+
+	printf("thing sent\n");
+
+        memset(buf,'\0', 80);
+        //try to receive some data, this is a blocking call
+        if (recvfrom(sock, buf, 80, 0, (struct sockaddr *) &theirUDPSocket, &slen) == -1)
+        {
+        	perror(s);
+        	exit(1);
+        }
+
+	printf("thing allegedly got\n");
+    //    buf[numbytes] = '\0';
+        printf("client: received '%s'\n",buf);
+
+	if(strcmp(buf, "200 BYE")==0){
+		printf("Exiting, with GRACE");
+		flag=0;
+	}
+
+    }
+
+
+    // if we don't connect to the UDP port (because we were passed a TCP port or a different port)
+
+
+
+
+
+
+
+    // then we will go on and try to connect to the TCP port like I already did.
 
     if (argc != 3) {
         fprintf(stderr,"usage: client <hostname> <port>\n");
@@ -83,9 +176,11 @@ int main(int argc, char *argv[])
     }
     buf[numbytes] = '\0';
     printf("client: received '%s'\n",buf);
-    
-    char input[16];
-    int flag = 1;
+
+
+
+    printf("now I'm serial\n");
+
     while(flag)
     {
 	// while we have not terminated connection

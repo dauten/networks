@@ -20,11 +20,11 @@ int main(void)
 {
     struct sockaddr_in myUDPSocket, theirUDPSocket;
      
-    int s, i, slen = sizeof(theirUDPSocket) , udpInLen;
+    int sock, isock, slen = sizeof(theirUDPSocket) , udpInLen;
     char buf[BUFLEN];
      
     //create a UDP socket
-    if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+    if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
         die("socket");
     }
@@ -37,9 +37,10 @@ int main(void)
     myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
      
     //bind socket to port
-    if( bind(s , (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
+    if( bind(sock , (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
     {
-        die("bind");
+        perror(s);
+        exit(1);
     }
      
     //keep listening for data
@@ -49,7 +50,7 @@ int main(void)
         fflush(stdout);
          
         //try to receive some data, this is a blocking call
-        if ((udpInLen = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *) &theirUDPSocket, &slen)) == -1)
+        if ((udpInLen = recvfrom(sock, buf, BUFLEN, 0, (struct sockaddr *) &theirUDPSocket, &slen)) == -1)
         {
             die("recvfrom()");
         }
@@ -59,7 +60,7 @@ int main(void)
         printf("Data: %s\n" , buf);
          
         //now reply the client with the same data
-        if (sendto(s, buf, udpInLen, 0, (struct sockaddr*) &theirUDPSocket, slen) == -1)
+        if (sendto(sock, buf, udpInLen, 0, (struct sockaddr*) &theirUDPSocket, slen) == -1)
         {
             die("sendto()");
         }
