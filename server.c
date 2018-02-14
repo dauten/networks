@@ -16,7 +16,7 @@
 #include <signal.h>
 #include <math.h>
 
-#define PORT 3490  // the port users will be connecting to
+#define PORT 9000  // the port users will be connecting to
 
 #define BACKLOG 10     // how many pending connections queue will hold
 
@@ -56,65 +56,66 @@ int main(int argc, char *args[])
 
     char *tcpPort = args[1];
     char *udpPort = args[2];
+	if(!fork()){
+		    struct sockaddr_in myUDPSocket, theirUDPSocket;
+		    int sock, other, slen = sizeof(theirUDPSocket) , udpInLen;
+		    char buf[80];
+		    //create a UDP socket
+		    if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+		    {
+			perror(s);
+		    }
+		    // zero out the structure
+		    memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
+		    myUDPSocket.sin_family = AF_INET;
+		    myUDPSocket.sin_port = htons(PORT);
+		    myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
+		    //bind socket to port
+		    if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
+		    {
+			perror(s);
+		    }
+		while(1){
 
-    struct sockaddr_in myUDPSocket, theirUDPSocket;
-     
-    int sock, isock, slen = sizeof(theirUDPSocket) , udpInLen;
-    char buf[80];
 
-    //create a UDP socket
-    if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-    {
-        perror(s);
-        exit(1);
-    }
-     
-    // zero out the structure
-    memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
-     
-    myUDPSocket.sin_family = AF_INET;
-    myUDPSocket.sin_port = htons(PORT);
-    myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
+	      	    printf("Waiting for data...");
+		    fflush(stdout);
+		 
+		    //try to receive some data, this is a blocking call
+		    if ((udpInLen = recvfrom(sock, buf, 80, 0, (struct sockaddr *) &theirUDPSocket, &slen)) == -1);
+		    
+		    //now reply the client with the same data
+		    if (sendto(sock, "1", 2, 0, (struct sockaddr*) &theirUDPSocket, slen) == -1);
 
-    //bind socket to port
-    if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
-    {
-        perror(s);
-        exit(1);
-    }
-
+		}
+	 }
 
 
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    printf("about to start tcp\n");
 
     if ((rv = getaddrinfo(NULL, tcpPort, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
     }
 
-   printf("any minute now\n");
     // loop through all the results and bind to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
                 p->ai_protocol)) == -1) {
-            perror("server: socket");
             continue;
         }
 
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
                 sizeof(int)) == -1) {
-            perror("setsockopt");
             exit(1);
         }
 
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
             close(sockfd);
-            perror("server: bind");
             continue;
         }
 
@@ -124,7 +125,6 @@ int main(int argc, char *args[])
     freeaddrinfo(servinfo); // all done with this structure
 
     if (p == NULL)  {
-        fprintf(stderr, "server: failed to bind\n");
         exit(1);
     }
 
@@ -137,34 +137,14 @@ int main(int argc, char *args[])
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction");
         exit(1);
     }
-
-    if(!fork()){
-        //try to receive some data, this is a blocking call
-        if ((udpInLen = recvfrom(sock, buf, 80, 0, (struct sockaddr *) &theirUDPSocket, &slen)) == -1)
-        {
-  	    perror(s);
-   	    exit(1);
-        }
-	if(buf[0]='1')
-		printf("hey got a 1");
-
-	printf("yo%s\n", buf);
-
-    }
-
-
-    printf("server: waiting for connections...\n");
-    printf("seriously...\n");
     while(1) {  // main accept() loop
 
         printf("main loop entered\n\n");
         sin_size = sizeof their_addr;
         new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
         if (new_fd == -1) {
-            perror("accept");
             continue;
         }
 

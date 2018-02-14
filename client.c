@@ -43,79 +43,64 @@ int main(int argc, char *argv[])
     int flag = 1;
 
 
-
-
-
-   
- 
-    // first we will create the UDP socket and stuff
-
-    struct sockaddr_in theirUDPSocket;
-    int sock, isock, slen=sizeof(theirUDPSocket);
-    if ( (sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-    {
-        perror(s);
-        exit(1);
-    }
-    memset((char *) &theirUDPSocket, 0, sizeof(theirUDPSocket));
-    theirUDPSocket.sin_family = AF_INET;
-    theirUDPSocket.sin_port = htons(PORT);
-    if (inet_aton(SERVER , &theirUDPSocket.sin_addr) == 0) 
-    {
-        fprintf(stderr, "inet_aton() failed\n");
+    if (argc != 3) {
+        fprintf(stderr,"usage: client <hostname> <port>\n");
         exit(1);
     }
 
-
-         
-   char *isudp;
-   // then we get the user's first command and attempt to communicate with the server
+	
 
 
-    printf("hey, do you want this to be UDP?\n");
-    fgets(isudp,3,stdin);
-    while(atoi(isudp))
-    {
-	// while we have not terminated connection
-        printf("aight now give a command\n");
-	fgets(input, 16, stdin);
-	for(int i = 0; i < 16; i++){
-		if(input[i] == '\n'){
-			input[i] = ' ';
-			input[i+1] = '\n';
-			input[i+2] = '\0';
-			i = 16;
-			break;
-		}
+
+
+
+	struct sockaddr_in si_other;
+	int sock, other, slen=sizeof(si_other);
+	char in[BUFLEN];
+	char out[BUFLEN];
+
+	sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	memset((char *) &si_other, 0, sizeof(si_other));
+	si_other.sin_family = AF_INET;
+	si_other.sin_port = htons(PORT);
+
+	if (inet_aton(SERVER , &si_other.sin_addr) == 0) 
+	{
+		fprintf(stderr, "inet_aton() failed\n");
+		exit(1);
 	}
+        //send the out
+	printf("pinging\n");
+        sendto(sock, "1", 1 , 0 , (struct sockaddr *) &si_other, slen);
+	
+        memset(in,'\0', BUFLEN);
 
-	printf("I'm going to try to send it now\n");
-        if (sendto(sock, input, strlen(input) , 0 , (struct sockaddr *) &theirUDPSocket, slen)==-1)
-        {
-             perror(s);
-             exit(1);
-        }
 
-	printf("thing sent\n");
+	fd_set readfds;
+	int n;
+	struct timeval tv;
+	FD_ZERO(&readfds);
+	FD_SET(sock,&readfds);
+	n=sock+1;
+	tv.tv_sec=0;
+	tv.tv_usec = 1000000;
 
-        memset(buf,'\0', 80);
         //try to receive some data, this is a blocking call
-        if (recvfrom(sock, buf, 80, 0, (struct sockaddr *) &theirUDPSocket, &slen) == -1)
-        {
-        	perror(s);
-        	exit(1);
-        }
-
-	printf("thing allegedly got\n");
-    //    buf[numbytes] = '\0';
-        printf("client: received '%s'\n",buf);
-
-	if(strcmp(buf, "200 BYE")==0){
-		printf("Exiting, with GRACE");
-		flag=0;
+	
+	int rvr = select(n, &readfds, NULL, NULL, &tv);
+	printf("rvr is %d\n",rvr);
+	if( rvr!=0 ){
+		printf("pinged\n");
+       	 	recvfrom(sock, in, BUFLEN, 0, (struct sockaddr *) &si_other, &slen);
+        
+        	printf("response!: :%s:\n",in);
 	}
+//
 
-    }
+ 
+    
+
+
 
 
     // if we don't connect to the UDP port (because we were passed a TCP port or a different port)
@@ -128,13 +113,10 @@ int main(int argc, char *argv[])
 
     // then we will go on and try to connect to the TCP port like I already did.
 
-    if (argc != 3) {
-        fprintf(stderr,"usage: client <hostname> <port>\n");
-        exit(1);
-    }
+
 
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
     if ((rv = getaddrinfo(argv[1], argv[2], &hints, &servinfo)) != 0) {
