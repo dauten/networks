@@ -14,9 +14,7 @@
 
 #include <arpa/inet.h>
 
-#define SERVER "127.0.0.1"
 #define BUFLEN 512  //Max length of buffer
-#define PORT 9000   //The port on which to send data
 #define MAXDATASIZE 100 // max number of bytes we can get at once 
 
 // get sockaddr, IPv4 or IPv6:
@@ -38,6 +36,8 @@ int main(int argc, char *argv[])
     char s[INET6_ADDRSTRLEN];
 
 
+    char *SERVER = argv[1];
+    uint PORT = atoi(argv[2]);
     
     char input[16];
     int flag = 1;
@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
         
         	printf("response!: :%s:\n",in);
 	}
+	else{
 //
 
  
@@ -199,4 +200,6 @@ int main(int argc, char *argv[])
     close(sockfd);
 
     return 0;
+
+}
 }

@@ -16,7 +16,6 @@
 #include <signal.h>
 #include <math.h>
 
-#define PORT 9000  // the port users will be connecting to
 
 #define BACKLOG 10     // how many pending connections queue will hold
 
@@ -68,7 +67,7 @@ int main(int argc, char *args[])
 		    // zero out the structure
 		    memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
 		    myUDPSocket.sin_family = AF_INET;
-		    myUDPSocket.sin_port = htons(PORT);
+		    myUDPSocket.sin_port = htons(atoi(udpPort));
 		    myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
 		    //bind socket to port
 		    if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
