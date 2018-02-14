@@ -72,6 +72,16 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "inet_aton() failed\n");
 		exit(1);
 	}
+
+	for(int i = 0; i < 64; i++){
+		if(input[i] == '\n'){
+			input[i] = ' ';
+			input[i+1] = '\n';
+			input[i+2] = '\0';
+			i = 64;
+			break;
+		}
+	}//end for
 	sendto(udpSock, input, 64 , 0 , (struct sockaddr *) &otherUDP, slen);
 	memset(in,'\0', 100);
 

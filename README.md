@@ -1,6 +1,4 @@
 # networks
-compile both files with gcc.
-the executables should be named differently
-run 'serverout <PORT #>'
-then run 'clientout <PORT #>'
-clientout then wait for you to input IP of target
+compile the files by running 'make'
+this will output serverout which should be ran first, and clientout which is to be run afterwards
+made in c on archlinux, no other software should be needed.

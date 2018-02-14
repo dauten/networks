@@ -60,7 +60,7 @@ int main(int argc, char *args[])
 
 
 	//check that the user included arguments then copy them into our ports
-	if(argc != 2){
+	if(argc != 3){
 		printf("usage: server <tcp port> <udp port>\n");
 		exit(0);
 	}
@@ -98,7 +98,7 @@ int main(int argc, char *args[])
 				exit(1);
 			}
 			buf[numbytes] = '\0';
-
+			printf("server: received %s", buf);
 			char* split= strtok(buf, " "); //first token
 
 			//check first word of out input.  determine neccessary behavior, if any, and check for 2nd or 3rd words (args) to compute.
@@ -342,7 +342,7 @@ int main(int argc, char *args[])
 
 		if (!fork()) { // this is the child process
 			close(sockfd); // child doesn't need the listener
-			if (send(new_fd, "Hello, world!", 13, 0) == -1)
+			if (send(new_fd, "200 HELO", 13, 0) == -1)
 				perror("send");
 
 			int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
@@ -356,6 +356,7 @@ int main(int argc, char *args[])
 				exit(1);
 			}
 			buf[numbytes] = '\0';
+			printf("server: received %s", buf);
 	
 			char* split= strtok(buf, " "); //first token
 
