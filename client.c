@@ -19,9 +19,11 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <pthread.h>
+
 #include <arpa/inet.h>
 
-
+int ackFlag = 0;
 
 //function from beej's guide
 void *get_in_addr(struct sockaddr *sa)
@@ -32,8 +34,16 @@ void *get_in_addr(struct sockaddr *sa)
 
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
+struct args_struct {
+	int udpSock;
+	struct sockaddr_in otherUDP;
+	uint slen;
+};
+uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, int depth);
+void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen);
+void *listener(void * args);
 
-uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, char *in, int depth);
+
 
 int main(int argc, char *argv[])
 {
@@ -47,7 +57,6 @@ int main(int argc, char *argv[])
 	char s[INET6_ADDRSTRLEN];
 	char *SERVER = argv[1];
 	uint PORT = atoi(argv[2]);
-	char input[64];
 	int flag = 1;
 
 	// check if user gave needed args
@@ -60,7 +69,6 @@ int main(int argc, char *argv[])
 	struct sockaddr_in otherUDP;
 	int udpSock =sizeof(otherUDP);
 	uint slen=sizeof(otherUDP);
-	char in[100];
 
 	//setting up udp socket
 	udpSock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -73,58 +81,77 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	for(int i = 0; i < 64; i++){
-		if(input[i] == '\n'){
-			input[i] = ' ';
-			input[i+1] = '\n';
-			input[i+2] = '\0';
-			i = 64;
-			break;
-		}
-	}//end for
 
-	if(!fork()){
-		//this is the child; the listener
-		while(1){
+	pthread_t t1;
+	struct args_struct args;
+	args.udpSock= udpSock;
+	args.otherUDP=otherUDP;
+	args.slen=slen;
+	
+	//start listener and sender threads
+	pthread_create(&t1, NULL, &listener, (void *)&args);
+	inputParser(udpSock, otherUDP, slen);
+	while(1);
 
-			//recieve input...
-			//if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
-			//	perror("recv");
-			//}
-			//printf("\ngot: %s", buf);
-
-		}
-	}
-	else{
-		//this is the parent; the sender
-		while(1){
-
-			//get and reformat input
-			printf("\n>");
-			fgets(input, 64, stdin);
-			for(int i = 0; i < 64; i++){
-				if(input[i] == '\n'){
-					input[i] = ' ';
-					input[i+1] = '\n';
-					input[i+2] = '\0';
-					i = 64;
-					break;
-				}
-			}//end for
-
-			sendMessage(udpSock, input, otherUDP, slen, in, 0);
-		}
-	}
 
 } //end main
 
 
+//thread that listens for input from server and does appropriate thing with it
+void *listener(void  *args){
+	
+	struct args_struct *arg = (struct args_struct *)args;
+	int udpSock = arg->udpSock;
+	struct sockaddr_in otherUDP = arg->otherUDP;
+	uint slen = arg->slen;
+
+	int numbytes;
+	char buf[100];
+	while(1){
+		//recieve input...
+		if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
+			perror("recv");
+		}
+		printf("\ngot: %s", buf);
+		if(buf[0] == '@')
+			ackFlag = 1;
+
+	}
+
+}
+
+
+
+//thread that listens for keyboard input then sends it to server
+void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
+
+	//this is the parent; the sender
+	char input[100];
+	while(1){
+
+		//get and reformat input
+		printf("\n>");
+		fgets(input, 64, stdin);
+		for(int i = 0; i < 64; i++){
+			if(input[i] == '\n'){
+				input[i] = ' ';
+				input[i+1] = '\n';
+				input[i+2] = '\0';
+				i = 64;
+				break;
+			}
+		}//end for
+
+		sendMessage(udpSock, input, otherUDP, slen, 0);
+	}
+}
 
 /*
 * Sends message then awaits ACK.  If we get one within X seconds message was sent, otherwise we will resend a couple times
 */
-uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, char *in, int depth){
+uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, int depth){
 
+	char in[100];
 	if(depth > 10){
 		printf("Sorry, that message could not be delivered.  Try again later.");
 		return 1;	// error return message
@@ -133,24 +160,8 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 	sendto(udpSock, input, 64 , 0 , (struct sockaddr *) &otherUDP, slen);
 	memset(in,'\0', 100);
 
-	//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
-	fd_set readfds;
-	int n;
-	struct timeval tv;
-	FD_ZERO(&readfds);
-	FD_SET(udpSock,&readfds);
-	n=udpSock+1;
-	tv.tv_sec=0;
-	tv.tv_usec = 500000;
-
-	//we send our command to the server then wait to see if we get an ACK.  If so, good, if not, retry.  recursively.
-	int rvr = select(n, &readfds, NULL, NULL, &tv);
-	if( rvr!=0 ){
-		//ACK recieved.  Message sent correctly.
-		printf("\nACK received: %s");
-		return 0;
-	}
-	else{
+	while(!ackFlag){
+		sleep(1)
 		//lack of ACK, resend.
 		//it is ok if the server DID receive the message and an ACK is on the way,
 		//as long as the server receives the message at some point its its job to
@@ -160,5 +171,7 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 		//so long as we don't stack overflow or something we should exit the function call eventually so
 		
 	}
-
+	printf("\nACK received");
+	return 0;
+	ackFlag = 0;
 }
