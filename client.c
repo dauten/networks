@@ -21,6 +21,8 @@
 
 #include <arpa/inet.h>
 
+
+
 //function from beej's guide
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -35,6 +37,7 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 
 int main(int argc, char *argv[])
 {
+
 
 	//declaration
 	int tcpSock, numbytes;  
@@ -85,10 +88,10 @@ int main(int argc, char *argv[])
 		while(1){
 
 			//recieve input...
-			if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
-				perror("recv");
-			}
-			printf("got: %s", buf);
+			//if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
+			//	perror("recv");
+			//}
+			//printf("\ngot: %s", buf);
 
 		}
 	}
@@ -97,6 +100,7 @@ int main(int argc, char *argv[])
 		while(1){
 
 			//get and reformat input
+			printf("\n>");
 			fgets(input, 64, stdin);
 			for(int i = 0; i < 64; i++){
 				if(input[i] == '\n'){
@@ -113,6 +117,8 @@ int main(int argc, char *argv[])
 	}
 
 } //end main
+
+
 
 /*
 * Sends message then awaits ACK.  If we get one within X seconds message was sent, otherwise we will resend a couple times
@@ -135,12 +141,13 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 	FD_SET(udpSock,&readfds);
 	n=udpSock+1;
 	tv.tv_sec=0;
-	tv.tv_usec = 1000000;
+	tv.tv_usec = 500000;
 
 	//we send our command to the server then wait to see if we get an ACK.  If so, good, if not, retry.  recursively.
 	int rvr = select(n, &readfds, NULL, NULL, &tv);
 	if( rvr!=0 ){
 		//ACK recieved.  Message sent correctly.
+		printf("\nACK received: %s");
 		return 0;
 	}
 	else{
