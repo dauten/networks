@@ -58,6 +58,28 @@ struct user {
 	uint port;
 };
 
+struct mem_obj {
+	struct message queue[100];
+	struct user userlist[100];
+
+};
+
+
+void* create_shared_memory(size_t size) {
+  // Our memory buffer will be readable and writable:
+  int protection = PROT_READ | PROT_WRITE;
+
+  // The buffer will be shared (meaning other processes can access it), but
+  // anonymous (meaning third-party processes cannot obtain an address for it),
+  // so only this process and its children will be able to use it:
+  int visibility = MAP_ANONYMOUS | MAP_SHARED;
+
+  // The remaining parameters to `mmap()` are not important for this use case,
+  // but the manpage for `mmap` explains their purpose.
+  return mmap(NULL, size, protection, visibility, 0, 0);
+}
+
+
 int main(int argc, char *args[])
 {
 
@@ -75,10 +97,15 @@ int main(int argc, char *args[])
 					// shared between the processes.  when a process needs to send
 					// a message to a person or people not on its own port
 	struct user userlist[64];	// it will access the shared user list and fill the queue
-	uint usercount = 0;		// with the appropriate messages and ports
+	uint *usercount = 0;		// with the appropriate messages and ports
 					// all processes regularly poll the queue and if they have
 					// a message to send they send it.
-	
+	void* shqueue = create_shared_memory(128);
+	void* shuserlist = create_shared_memory(128);
+	void* shusercount = create_shared_memory(128);
+	memcpy(shqueue, queue, sizeof(queue));
+	memcpy(shuserlist, userlist, sizeof(userlist));
+	memcpy(shusercount, usercount, sizeof(usercount));
 
 
 	//check that the user included arguments then copy them into our ports
@@ -165,6 +192,22 @@ int main(int argc, char *args[])
 				//now we have a new socket up, this loop in child proces will listen to its user
 				//and process all commands for it.
 				while(1){
+
+
+					//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
+					fd_set readfds;
+					int n;
+					struct timeval tv;
+					FD_ZERO(&readfds);
+					FD_SET(sock,&readfds);
+					n=sock+1;
+					tv.tv_sec=0;
+					tv.tv_usec = 100000;
+
+					//we essentially ping the port we were giving using UDP. if the server responds in
+					//UDP then this is a unreliable connection and we stay in the main of the 'if'
+					int rvr = select(n, &readfds, NULL, NULL, &tv);
+					if( rvr!=0 )
 					numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
 					if(numbytes == -1 || numbytes == 0){
 						perror("recv");
@@ -172,12 +215,30 @@ int main(int argc, char *args[])
 					}
 
 					buf[numbytes] = '\0';
-					printf("\nserver: received %s\ton %f", buf, (float)nextPort);
+					printf("\nserver: received %s\ton %f\n", buf, (float)nextPort);
 					if (sendto(sock, "@ACK", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
 						perror("send");
 
 					
-					printf("\nLoop done for port %d", nextPort);
+					printf("\nLoop done for port %d\n", nextPort);
+					if(buf[1] == '!'){
+						struct message temp[100];
+						memcpy(temp, shqueue, 100);
+						temp[0].msg = "OMG IT WORKED";
+						temp[0].port = 9002;
+						memcpy(shqueue, temp, 100);	
+						printf("set message\n");
+
+					}
+					struct message tmp[100];
+					memcpy(tmp, shqueue, 100);
+					if(tmp[0].port == nextPort){
+
+						if (sendto(sock, tmp[0].msg, 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
+							perror("send");
+						tmp[0].port = 0;
+						memcpy(shqueue, tmp, 100);
+					} 
 
 				}
 			}
