@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 	if ((numbytes = recvfrom(udpSock, buf, 512, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1)
 		perror("recv");
 	PORT = atoi(buf);
-	printf("\nwe got port %d", PORT);
+	printf("we got port %d\n", PORT);
 
 
 	// we will now close the old datagram and re-establish connection using the port given by the server
@@ -165,6 +165,8 @@ void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
 
 	//this is the parent; the sender
 	char input[512];
+	printf("\t>");
+	fflush(stdin);
 	while(running){
 
 		//get and reformat input
