@@ -58,12 +58,6 @@ struct user {
 	uint port;
 };
 
-struct mem_obj {
-	struct message queue[100];
-	struct user userlist[100];
-
-};
-
 
 void* create_shared_memory(size_t size) {
   // Our memory buffer will be readable and writable:
@@ -105,7 +99,7 @@ int main(int argc, char *args[])
 	void* shusercount = create_shared_memory(128);
 	memcpy(shqueue, queue, sizeof(queue));
 	memcpy(shuserlist, userlist, sizeof(userlist));
-	memcpy(shusercount, usercount, sizeof(usercount));
+	//memcpy(shusercount, usercount, sizeof(usercount));
 
 
 	//check that the user included arguments then copy them into our ports
@@ -192,8 +186,6 @@ int main(int argc, char *args[])
 				//now we have a new socket up, this loop in child proces will listen to its user
 				//and process all commands for it.
 				while(1){
-
-
 					//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
 					fd_set readfds;
 					int n;
@@ -204,30 +196,32 @@ int main(int argc, char *args[])
 					tv.tv_sec=0;
 					tv.tv_usec = 100000;
 
-					//we essentially ping the port we were giving using UDP. if the server responds in
-					//UDP then this is a unreliable connection and we stay in the main of the 'if'
-					int rvr = select(n, &readfds, NULL, NULL, &tv);
-					if( rvr!=0 )
-					numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
-					if(numbytes == -1 || numbytes == 0){
-						perror("recv");
-						exit(1);
+
+					int received = select(n, &readfds, NULL, NULL, &tv);
+
+
+					if(FD_ISSET(sock, &readfds) ){
+						// listen to our port and then process what we hear by tokenizing it
+						numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
+						if(numbytes == -1 || numbytes == 0){
+							perror("recv");
+							exit(1);
+						}
+						buf[numbytes] = '\0';
+						if(buf[0] != 0){
+							printf("\nserver: received %s\ton %f.  %d bytes.\n", buf, (float)nextPort, buf[0]);
+							printf("sending ack");
+							if (sendto(sock, "@ACK", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1);
+								perror("send");	
+						}
 					}
-
-					buf[numbytes] = '\0';
-					printf("\nserver: received %s\ton %f\n", buf, (float)nextPort);
-					if (sendto(sock, "@ACK", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-						perror("send");
-
 					
-					printf("\nLoop done for port %d\n", nextPort);
 					if(buf[1] == '!'){
 						struct message temp[100];
 						memcpy(temp, shqueue, 100);
 						temp[0].msg = "OMG IT WORKED";
 						temp[0].port = 9002;
 						memcpy(shqueue, temp, 100);	
-						printf("set message\n");
 
 					}
 					struct message tmp[100];
@@ -238,7 +232,10 @@ int main(int argc, char *args[])
 							perror("send");
 						tmp[0].port = 0;
 						memcpy(shqueue, tmp, 100);
-					} 
+
+					}
+					memset(buf, '\0', 512);
+					 	
 
 				}
 			}

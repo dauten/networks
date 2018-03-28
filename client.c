@@ -56,12 +56,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	char user[10];
-	printf("please enter username");
-//	fgets(user, 10, stdin);
-	char nick[10];
-	printf("please enter nickname");
-//	fgets(nick, 10, stdin);	
 
 	//declaration
 	int udpSock, numbytes;  
@@ -154,11 +148,13 @@ void *listener(void  *args){
 			perror("recv");
 		}
 		//print any input we recieve.  this is indiscriminate atm but will do some formatting later
-		printf("\ngot: %s", buf);
+		
 		//if the message was an ACK we set a flag so the sender knows it was
 		if(buf[0] == '@')
 			ackFlag = 1;
-		//else if etc
+		else{
+			printf("\ngot: %s\n", buf);
+		}
 
 	}
 
@@ -172,8 +168,29 @@ void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
 	while(running){
 
 		//get and reformat input
-		printf("\n\t>");
-		fgets(input, 512, stdin);
+		
+		
+
+		//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
+		fd_set readfds;
+		int n;
+		struct timeval tv;
+		FD_ZERO(&readfds);
+		FD_SET(0,&readfds);
+		n=1;
+		tv.tv_sec=0;
+		tv.tv_usec = 100000;
+
+
+		select(n, &readfds, NULL, NULL, &tv);
+
+
+		if(FD_ISSET(0, &readfds) ){
+			printf("\t>");
+			fgets(input, 512, stdin);
+		}
+
+		
 		for(int i = 0; i < 510; i++){
 			if(input[i] == '\n'){
 				input[i] = ' ';
@@ -184,7 +201,8 @@ void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
 			}
 		}//end for
 
-		sendMessage(udpSock, input, otherUDP, slen, 0);
+		if(input[0] != 0);
+			sendMessage(udpSock, input, otherUDP, slen, 0);
 	}
 }
 
@@ -200,7 +218,7 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 
 	sendto(udpSock, input, 512 , 0 , (struct sockaddr *) &otherUDP, slen);
 	memset(input,'\0', 512);
-
+/*
 	while(!ackFlag){
 		sleep(1);
 		//lack of ACK, resend.
@@ -213,7 +231,7 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 		
 	}
 
-	ackFlag = 0;
+	ackFlag = 0;*/
 	return 0;
 
 
