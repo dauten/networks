@@ -1,6 +1,6 @@
 /**
 * Author:  Dale Auten
-* Modified: 2/14/18
+* Modified: 3/27/18
 * Desc: Server Side half of a project to communicate through sockets bound to ports on a linux machine.
 * Beej's Guide to Network Programming (https://beej.us/guide/bgnet/) was referenced heavily
 * and certain lines were taken from the guide.  I have noted where.
@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <math.h>
+#include <sys/mman.h>
 
 
 #define BACKLOG 10     // how many pending connections queue will hold
@@ -45,8 +46,18 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+struct message {
+	char *msg;
+	uint port;
+};
 
-	
+struct user {
+	char *user;
+	char *nick;
+	char mode;
+	uint port;
+};
+
 int main(int argc, char *args[])
 {
 
@@ -59,6 +70,15 @@ int main(int argc, char *args[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
+	
+	struct message queue[100];	// we have a list of the 10 most recent messages.  this will be
+					// shared between the processes.  when a process needs to send
+					// a message to a person or people not on its own port
+	struct user userlist[64];	// it will access the shared user list and fill the queue
+	uint usercount = 0;		// with the appropriate messages and ports
+					// all processes regularly poll the queue and if they have
+					// a message to send they send it.
+	
 
 
 	//check that the user included arguments then copy them into our ports
@@ -68,7 +88,7 @@ int main(int argc, char *args[])
 	}
 
 	char *udpPort = args[1];
-	nextPort = atoi(args[1])+2;
+	nextPort = atoi(args[1]);
 
 	//listen for messages and return an ACK
 	struct sockaddr_in myUDPSocket, theirUDPSocket;
@@ -102,7 +122,6 @@ int main(int argc, char *args[])
 			exit(1);
 		}
 		buf[numbytes] = '\0';
-		printf("\nserver: received %s on port %d", buf, udpPort);
 
 		if(  buf[0] == '#' )
 		{
@@ -110,17 +129,22 @@ int main(int argc, char *args[])
 			nextPort++;
 			if(!fork()){
 
+				//format to text and tell client what port to use
 				sprintf(buf, "%d", nextPort);
 				if (sendto(sock, buf, 4  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-				perror("send");
+					perror("send");
 
+				//child will not need old socket
 				close(sock);
+
+
 				//listen for messages and return an ACK
 				struct sockaddr_in myUDPSocket, theirUDPSocket;
 				int sock= sizeof(theirUDPSocket);
 				uint slen = sizeof(theirUDPSocket);
 				char buf[512], old[512];
-				//create a UDP socket
+
+				//create a new UDP socket
 				if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
 				{
 					perror(s);
@@ -138,16 +162,23 @@ int main(int argc, char *args[])
 				}
 
 
+				//now we have a new socket up, this loop in child proces will listen to its user
+				//and process all commands for it.
 				while(1){
 					numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
 					if(numbytes == -1 || numbytes == 0){
 						perror("recv");
 						exit(1);
 					}
+
 					buf[numbytes] = '\0';
-					printf("\nserver: received %s \ton %f", buf, (float)nextPort);
+					printf("\nserver: received %s\ton %f", buf, (float)nextPort);
 					if (sendto(sock, "@ACK", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
 						perror("send");
+
+					
+					printf("\nLoop done for port %d", nextPort);
+
 				}
 			}
 		}
@@ -159,3 +190,4 @@ int main(int argc, char *args[])
 	return 0;
 
 }//end main
+

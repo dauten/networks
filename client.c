@@ -1,6 +1,6 @@
 /**
 * Author:  Dale Auten
-* Modified: 3/24/18
+* Modified: 3/27/18
 * Desc: Client Side half of a project to communicate through sockets bound to ports on a linux machine.
 * Beej's Guide to Network Programming (https://beej.us/guide/bgnet/) was referenced heavily
 * and certain lines were taken from the guide.  I have noted where.
@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+
 
 #include <pthread.h>
 
@@ -157,6 +158,7 @@ void *listener(void  *args){
 		//if the message was an ACK we set a flag so the sender knows it was
 		if(buf[0] == '@')
 			ackFlag = 1;
+		//else if etc
 
 	}
 
@@ -170,7 +172,7 @@ void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
 	while(running){
 
 		//get and reformat input
-		printf("\n>");
+		printf("\n\t>");
 		fgets(input, 512, stdin);
 		for(int i = 0; i < 510; i++){
 			if(input[i] == '\n'){
@@ -211,8 +213,8 @@ uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint sle
 		
 	}
 
-	printf("\nACK received");
-	return 0;
 	ackFlag = 0;
+	return 0;
+
 
 }
