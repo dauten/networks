@@ -21,7 +21,7 @@
 #include <math.h>
 #include <sys/mman.h>
 #include <assert.h>
-
+#include <time.h>
 
 #define BACKLOG 10     // how many pending connections queue will hold
 
@@ -64,25 +64,33 @@ struct user {
 	int port;
 };
 
-
-void* create_shared_memory(size_t size) {
-  // Our memory buffer will be readable and writable:
-  int protection = PROT_READ | PROT_WRITE;
-
-  // The buffer will be shared (meaning other processes can access it), but
-  // anonymous (meaning third-party processes cannot obtain an address for it),
-  // so only this process and its children will be able to use it:
-  int visibility = MAP_ANONYMOUS | MAP_SHARED;
-
-  // The remaining parameters to `mmap()` are not important for this use case,
-  // but the manpage for `mmap` explains their purpose.
-  return mmap(NULL, size, protection, visibility, 0, 0);
-}
-
-int getUserByName(char* name, void *shuserlist);
+struct message queue[100];
+struct user users[100];
 
 int main(int argc, char *args[])
-{
+{/*
+	time_t rawtime;
+	struct tm * timeinfo;
+
+	time ( &rawtime );
+	timeinfo = localtime ( &rawtime );
+	char time[6], loc[20];
+	strftime(time, 6, "%H%M", timeinfo);
+	printf ( "Current local time: %s\n", time);
+	mkdir(time);
+	sprintf(loc, "%s.txt\0", time);
+	chdir(time);
+
+*/
+	FILE *fp;
+	char file[12];
+
+	//sprintf(file, "%s/f.txt", time);
+	//printf("subfolder is %s\n",file);
+	fp = fopen("file.txt", "w+");
+	fprintf(fp, "This is testing for fprintf...\n");
+	fputs("This is testing for fputs...\n", fp);
+	fclose(fp);
 
 	//declarations taken from beej's guide
 	int sockfd, new_fd, numbytes;  // listen on sock_fd, new connection on new_fd
@@ -93,22 +101,6 @@ int main(int argc, char *args[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int firstPort;
-	
-	struct message queue[100];	// we have a list of the 10 most recent messages.  this will be
-	uint *queuenext = 0;		// shared between the processes.  when a process needs to send
-					// a message to a person or people not on its own port
-	struct user userlist[100];	// it will access the shared user list and fill the queue
-	int counters[2] = {0,0};	// with the appropriate messages and ports
-					// all processes regularly poll the queue and if they have
-					// a message to send they send it.
-	void* shqueue = create_shared_memory(256);
-	void* shuserlist = create_shared_memory(256);
-	void* shusercount = create_shared_memory(32);
-void* shmem = create_shared_memory(128);
-memcpy(shmem, "token", sizeof("token"));
-	memcpy(shqueue, queue, sizeof(queue));
-	memcpy(shuserlist, userlist, sizeof(userlist));
-	memcpy(shusercount, counters, sizeof(counters));
 
 
 	//check that the user included arguments then copy them into our ports
@@ -142,9 +134,6 @@ memcpy(shmem, "token", sizeof("token"));
 		perror(s);
 	}
 
-	struct message q[100];
-	struct user temp[100];
-	struct user thisuser;
 
 	//listen for udp input and respond; forever (or until the program is force quit)
 	//this main loop just looks for port requests then sends client that port.
@@ -200,20 +189,6 @@ memcpy(shmem, "token", sizeof("token"));
 					perror(s);
 				}
 				
-				
-
-				thisuser.user = "default";
-				thisuser.nick = "none";
-				thisuser.mode = 'a';
-				thisuser.port = nextPort;
-
-				memcpy(temp, shuserlist, 100);
-
-
-				temp[nextPort-firstPort] = thisuser;
-
-				memcpy(shuserlist, temp, 100);
-
 
 				//now we have a new socket up, this loop in child proces will listen to its user
 				//and process all commands for it.
@@ -247,43 +222,24 @@ memcpy(shmem, "token", sizeof("token"));
 							tokens = str_split(buf, ' ');	//tokenize input string for easier parsing
 							if(strcmp(tokens[0], "ME") == 0){
 								char out[100];
-								memcpy(temp, shuserlist, sizeof(shuserlist));
-										
-								sprintf(out, "USER: %s, NICK: %s, MODE: %c, PORT: %d\n",temp[0].user, temp[nextPort-firstPort].nick, temp[nextPort-firstPort].mode,  temp[nextPort-firstPort].port);
+								struct user temp[100];
+								sprintf(out, "USER: %s, NICK: %s, MODE: %c, PORT: %d\n",temp[nextPort-firstPort].user, temp[nextPort-firstPort].nick, temp[nextPort-firstPort].mode,  temp[nextPort-firstPort].port);
 								//sprintf(out, "USER: %s, NICK: %s, MODE: %c, PORT: %d\n",temp[0].user, temp[nextPort-firstPort].nick, temp[nextPort-firstPort].mode,  temp[nextPort-firstPort].port);
 								
 								if (sendto(sock, out, 99, 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
 									perror("send");	
 							}//end ME
 							else if(strcmp(tokens[0], "USER") == 0){
-								thisuser.user = tokens[1];
-								memcpy(temp, shuserlist, sizeof(shuserlist));						
-								temp[nextPort-firstPort] = thisuser;
-								memcpy(shuserlist, temp, sizeof(shuserlist));
+	
 
 							}//end USER
 							else if(strcmp(tokens[1], "NICK") == 0){
-								thisuser.nick = tokens[1];
-								memcpy(temp, shuserlist, sizeof(shuserlist));						
-								temp[nextPort-firstPort] = thisuser;
-								memcpy(shuserlist, temp, sizeof(shuserlist));
+	
 
 							}//end NICK
 							else if(strcmp(tokens[0], "PRIVMSG") == 0){
 
 
-								memcpy(queue, shqueue, sizeof(shqueue));
-								queue[0].rec = tokens[1];
-								queue[0].msg = tokens[2];
-								
-
-								memcpy(shqueue, queue, sizeof(queue));
-
-								queue[0].msg = "fuck";
-
-								char *child = "not a token";
-								memcpy(shmem, child, sizeof(child));
-								
 
 
 							}//end PRIVMSG
@@ -295,7 +251,7 @@ memcpy(shmem, "token", sizeof("token"));
 
 
 					}
-
+/*
 					memcpy(temp, shuserlist, sizeof(shuserlist));
 									
 					memcpy(queue, shqueue, sizeof(shqueue));
@@ -309,7 +265,7 @@ memcpy(shmem, "token", sizeof("token"));
 							memcpy(shqueue, queue, sizeof(shqueue));
 
 						}
-					}
+					}*/
 
 
 					memset(buf, '\0', 512);
