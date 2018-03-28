@@ -1,6 +1,6 @@
 /**
 * Author:  Dale Auten
-* Modified: 2/14/18
+* Modified: 3/27/18
 * Desc: Client Side half of a project to communicate through sockets bound to ports on a linux machine.
 * Beej's Guide to Network Programming (https://beej.us/guide/bgnet/) was referenced heavily
 * and certain lines were taken from the guide.  I have noted where.
@@ -19,8 +19,14 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+
+#include <pthread.h>
+
 #include <arpa/inet.h>
 
+int ackFlag = 0;
+
+uint running = 1;
 
 //function from beej's guide
 void *get_in_addr(struct sockaddr *sa)
@@ -32,190 +38,201 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+struct args_struct {
+	int udpSock;
+	struct sockaddr_in otherUDP;
+	uint slen;
+};
+
+uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, int depth);
+void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen);
+void *listener(void * args);
+
 int main(int argc, char *argv[])
 {
-	//declaration
-	int tcpSock, numbytes;  
-	char buf[128];
-	struct addrinfo hints, *servinfo, *p;
-	int rv;
-	char s[INET6_ADDRSTRLEN];
-	char *SERVER = argv[1];
-	uint PORT = atoi(argv[2]);
-	char input[64];
-	int flag = 1;
-
 	// check if user gave needed args
 	if (argc != 3) {
 		fprintf(stderr,"usage: client <hostname> <port>\n");
 		exit(1);
 	}
 
+
+	//declaration
+	int udpSock, numbytes;  
+	char buf[512];
+	struct addrinfo hints, *servinfo, *p;
+	int rv;
+	char s[INET6_ADDRSTRLEN];
+	char *SERVER = argv[1];
+	uint PORT = atoi(argv[2]);
+	int flag = 1;
+
 	//declaration
 	struct sockaddr_in otherUDP;
-	int udpSock =sizeof(otherUDP);
 	uint slen=sizeof(otherUDP);
-	char in[100];
 
-
-	//prompt for input even though we don't use this until a little later
-	printf("Please attempt to connect to the server with 'HELO <hostname>'\n");
-	fgets(input, 64, stdin);
-
-	//setting up udp socket
-	udpSock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	memset((char *) &otherUDP, 0, sizeof(otherUDP));
-	otherUDP.sin_family = AF_INET;
-	otherUDP.sin_port = htons(PORT);
 	if (inet_aton(SERVER , &otherUDP.sin_addr) == 0) 
 	{
 		fprintf(stderr, "inet_aton() failed\n");
 		exit(1);
 	}
 
-	for(int i = 0; i < 64; i++){
-		if(input[i] == '\n'){
-			input[i] = ' ';
-			input[i+1] = '\n';
-			input[i+2] = '\0';
-			i = 64;
-			break;
-		}
-	}//end for
-	sendto(udpSock, input, 64 , 0 , (struct sockaddr *) &otherUDP, slen);
-	memset(in,'\0', 100);
+	//setting up udp socket
+	udpSock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	memset((char *) &otherUDP, 0, sizeof(otherUDP));
+	otherUDP.sin_family = AF_INET;
+	otherUDP.sin_port = htons(PORT);	
 
-	//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
-	fd_set readfds;
-	int n;
-	struct timeval tv;
-	FD_ZERO(&readfds);
-	FD_SET(udpSock,&readfds);
-	n=udpSock+1;
-	tv.tv_sec=0;
-	tv.tv_usec = 1000000;
+	//send our request for a port
+	sendto(udpSock, "#", 2 , 0 , (struct sockaddr *) &otherUDP, slen);
+	//get the response	
+	if ((numbytes = recvfrom(udpSock, buf, 512, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1)
+		perror("recv");
+	PORT = atoi(buf);
+	printf("\nwe got port %d", PORT);
 
-	//we essentially ping the port we were giving using UDP. if the server responds in
-	//UDP then this is a unreliable connection and we stay in the main of the 'if'
-	int rvr = select(n, &readfds, NULL, NULL, &tv);
-	if( rvr!=0 ){
-		if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
-			perror("recv");
-		}
-		printf("client: received '%s'\n",buf);
-		int flag = 1;
-		
-		//start command-input loop
-		while(flag)
-		{
-			//get and reformat input
-			fgets(input, 64, stdin);
-			for(int i = 0; i < 64; i++){
-				if(input[i] == '\n'){
-					input[i] = ' ';
-					input[i+1] = '\n';
-					input[i+2] = '\0';
-					i = 64;
-					break;
-				}
-			}//end for
 
-			//send message...
-			if (sendto(udpSock, input, 64 , 0 , (struct sockaddr *) &otherUDP, slen) == -1)
-				perror("send");
+	// we will now close the old datagram and re-establish connection using the port given by the server
+	close(udpSock);
 
-			//...recieve input...
-			if ((numbytes = recvfrom(udpSock, buf, 100, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
-				perror("recv");
-			}
+	//declaration
+	slen=sizeof(otherUDP);
 
-			//...then output
-			buf[numbytes] = '\0';
-			printf("client: received '%s'\n",buf);
+	if (inet_aton(SERVER , &otherUDP.sin_addr) == 0) 
+	{
+		fprintf(stderr, "inet_aton() failed\n");
+		exit(1);
+	}
 
-			//...when we get the OK from the server we exit the loop to close socket & exit
-			if(strcmp(buf, "200 BYE")==0){
-				flag=0;
-			}
-		}//end while
+	//setting up udp socket
+	udpSock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	memset((char *) &otherUDP, 0, sizeof(otherUDP));
+	otherUDP.sin_family = AF_INET;
+	otherUDP.sin_port = htons(PORT);
 
-		close(tcpSock);
-		return 0;
+	udpSock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	memset((char *) &otherUDP, 0, sizeof(otherUDP));
+	otherUDP.sin_family = AF_INET;
+	otherUDP.sin_port = htons(PORT);	
 
-	}//end if
-	else{
-		//this else is entered in connection is NOT UDP (so either it is TCP or we were given a bad port)
+	// then, we merely listen for any input and output
+	pthread_t t1;
+	struct args_struct args;
+	args.udpSock= udpSock;
+	args.otherUDP=otherUDP;
+	args.slen=slen;
+	
+	//start listener and sender threads
+	pthread_create(&t1, NULL, &listener, (void *)&args); //as far as I'm aware you can only pass one 'arg' to pthread
+							     //so to get all 3 things we need we make a single struct w/ them all
+	inputParser(udpSock, otherUDP, slen);
+	while(running);
+	exit(0);
 
-		//try to set up the port.  from beej's guide
-		memset(&hints, 0, sizeof hints);
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		if ((rv = getaddrinfo(argv[1], argv[2], &hints, &servinfo)) != 0) {
-			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-			return 1;
-		}
-		for(p = servinfo; p != NULL; p = p->ai_next) {
-			if ((tcpSock = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) {
-				perror("client: socket");
-				continue;
-			}
-			if (connect(tcpSock, p->ai_addr, p->ai_addrlen) == -1) {
-				close(tcpSock);
-				perror("client: connect");
-				continue;
-			}
-
-			break;
-		}//end for
-		if (p == NULL) {
-			fprintf(stderr, "client: failed to connect\n");
-			return 2;
-		}
-		inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),s, sizeof s);
-
-		freeaddrinfo(servinfo);
-
-		//we expect an initial response from the server.
-		if ((numbytes = recv(tcpSock, buf, 128-1, 0)) == -1) {
-			perror("recv");
-			exit(1);
-		}
-		buf[numbytes] = '\0';
-
-		printf("client: received '%s'\n",buf);
-
-		//TCP command-loop
-		while(flag)
-		{
-			//input
-			fgets(input, 64, stdin);
-			for(int i = 0; i < 64; i++){
-				if(input[i] == '\n'){
-					input[i] = ' ';
-					input[i+1] = '\n';
-					input[i+2] = '\0';
-					i = 64;
-					break;
-				}
-			} //end for
-
-			//send, recieve, and output
-			if (send(tcpSock, input, 16 , 0) == -1)
-				perror("send");
-			if ((numbytes = recv(tcpSock, buf, 100, 0)) == -1) {
-				perror("recv");
-			}
-			buf[numbytes] = '\0';
-			printf("client: received '%s'\n",buf);
-
-			if(strcmp(buf, "200 BYE")==0){
-				flag=0;
-			}
-		} //end while
-
-		close(tcpSock);
-		return 0;
-
-	}//end else
 
 } //end main
+
+//thread that listens for input from server and does appropriate thing with it
+void *listener(void  *args){
+	
+	struct args_struct *arg = (struct args_struct *)args;
+	int udpSock = arg->udpSock;
+	struct sockaddr_in otherUDP = arg->otherUDP;
+	uint slen = arg->slen;
+
+	int numbytes;
+	char buf[512];
+	while(running){
+		//recieve input...
+		if ((numbytes = recvfrom(udpSock, buf, 512, 0 , (struct sockaddr *) &otherUDP, &slen)) == -1) {
+			perror("recv");
+		}
+		//print any input we recieve.  this is indiscriminate atm but will do some formatting later
+		
+		//if the message was an ACK we set a flag so the sender knows it was
+		if(buf[0] == '@')
+			ackFlag = 1;
+		else{
+			printf("\ngot: %s\n", buf);
+		}
+
+	}
+
+}
+
+//thread that listens for keyboard input then sends it to server
+void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen){
+
+	//this is the parent; the sender
+	char input[512];
+	while(running){
+
+		//get and reformat input
+		
+		
+
+		//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
+		fd_set readfds;
+		int n;
+		struct timeval tv;
+		FD_ZERO(&readfds);
+		FD_SET(0,&readfds);
+		n=1;
+		tv.tv_sec=0;
+		tv.tv_usec = 100000;
+
+
+		select(n, &readfds, NULL, NULL, &tv);
+
+
+		if(FD_ISSET(0, &readfds) ){
+			printf("\t>");
+			fgets(input, 512, stdin);
+		}
+
+		
+		for(int i = 0; i < 510; i++){
+			if(input[i] == '\n'){
+				input[i] = ' ';
+				input[i+1] = '\n';
+				input[i+2] = '\0';
+				i = 512;
+				break;
+			}
+		}//end for
+
+		if(input[0] != 0);
+			sendMessage(udpSock, input, otherUDP, slen, 0);
+	}
+}
+
+/*
+* Sends message then awaits ACK.  If we get one within X seconds message was sent, otherwise we will resend a couple times
+*/
+uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, int depth){
+
+	if(depth > 10){
+		printf("Sorry, that message could not be delivered.  Try again later.");
+		return 1;	// error return message
+	}
+
+	sendto(udpSock, input, 512 , 0 , (struct sockaddr *) &otherUDP, slen);
+	memset(input,'\0', 512);
+/*
+	while(!ackFlag){
+		sleep(1);
+		//lack of ACK, resend.
+		//it is ok if the server DID receive the message and an ACK is on the way,
+		//as long as the server receives the message at some point its its job to
+		//sort out duplicates, and we should receive the ACK meant for the first msg
+		//for the second one we send
+		return sendMessage(udpSock, input, otherUDP, slen, depth+1);
+		//so long as we don't stack overflow or something we should exit the function call eventually so
+		
+	}
+
+	ackFlag = 0;*/
+	return 0;
+
+
+}
