@@ -63,231 +63,13 @@ int main(int argc, char *args[])
 
 
 	//check that the user included arguments then copy them into our ports
-	if(argc != 3){
-		printf("usage: server <tcp port> <udp port>\n");
+	if(argc != 2){
+		printf("usage: server <tcp port>\n");
 		exit(0);
 	}
 	char *tcpPort = args[1];
 	char *udpPort = args[2];
 
-	//this branch of the program handle UDP requests while the parent will go on to handle TCP
-	if(!fork()){
-		struct sockaddr_in myUDPSocket, theirUDPSocket;
-		int sock= sizeof(theirUDPSocket);
-		uint slen = sizeof(theirUDPSocket);
-		char buf[80];
-		//create a UDP socket
-		if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-		{
-		perror(s);
-		}
-		memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
-		myUDPSocket.sin_family = AF_INET;
-		myUDPSocket.sin_port = htons(atoi(udpPort));
-		myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
-		//bind socket to port
-		if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
-		{
-		perror(s);
-		}
-		int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
-
-		//listen for udp input and respond; forever (or until the program is force quit)
-		while(1){
-			// listen to our port and then process what we hear by tokenizing it
-			numbytes = recvfrom(sock, buf, 100, 0,(struct sockaddr *) &theirUDPSocket, &slen);
-			if(numbytes == -1 || numbytes == 0){
-				perror("recv");
-				exit(1);
-			}
-			buf[numbytes] = '\0';
-			printf("server: received %s", buf);
-			char* split= strtok(buf, " "); //first token
-
-			//check first word of out input.  determine neccessary behavior, if any, and check for 2nd or 3rd words (args) to compute.
-			//this is just a big tedious if statement so its not neccessary to comment it.  its self documenting
-			if(split[0]!=0){
-				if(  strcmp(split, "HELP") == 0)
-				{
-					if (sendto(sock, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-					perror("send");
-				}
-				else if(  strcmp(split, "BYE") == 0)
-				{
-					if (sendto(sock, "200 BYE", 10 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-					perror("send");
-				}	
-				else if(  strcmp(split, "CIRCLE") == 0)
-				{
-					if (sendto(sock, "210 CIRCLE ready", 10 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-					perror("send");
-					state = 2;
-				}
-				else if(  strcmp(split, "SPHERE") == 0)
-				{
-					if (sendto(sock, "220 SPHERE ready", 10 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-						perror("send");
-					state = 3;
-				}
-				else if(  strcmp(split, "CYLINDER") == 0)
-				{
-					if (sendto(sock, "230 CYLINDER ready", 12 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-						perror("send");
-					state = 4;
-				}
-				else if(  strcmp(split, "AREA") == 0 )
-				{
-					if(state == 2)
-					{
-
-						char* s2 = strtok(NULL, " ");
-
-						if(atoi(s2) == 0)
-						{
-							if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-						else{
-							sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
-							if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-					}
-					else if(state == 4)
-					{
-						char* s2 = strtok(NULL, " ");
-						char* s3 = strtok(NULL, " ");
-						printf(":%f:", atof(s2));
-						if(atoi(s2) == 0 || atoi(s3) == 0){
-							if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}else{
-							sprintf(split, "250-Cylinder %f (%f)",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)),atof(s3) );
-							if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-					}
-					else
-					{
-						sprintf(split, "503-Out of Order");
-						if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-					}
-				}
-				else if(  strcmp(split, "CIRC") == 0 )
-				{
-					if(state == 2)
-					{
-						char* s2 = strtok(NULL, " ");
-						if(atoi(s2) == 0)
-						{
-							if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-						else
-						{
-							sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
-							if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-					}
-
-					else
-					{
-						sprintf(split, "503-Out of Order");
-						if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-					}
-				}
-				else if(  strcmp(split, "VOL") == 0 )
-				{
-					if(state == 3)
-					{
-						char* s2 = strtok(NULL, " ");
-							if(atoi(s2) == 0)
-							{
-								if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-									perror("send");
-								}
-								else
-								{  
-									sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
-									if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-										perror("send");
-								}
-							}
-
-					else
-					{
-						sprintf(split, "503-Out of Order");
-						if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-					}
-				}
-				else if(  strcmp(split, "RAD") == 0 )
-				{
-					if(state == 3){
-						char* s2 = strtok(NULL, " ");
-
-						if(atoi(s2) == 0){
-							if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-						else
-						{  
-							sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
-							if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-					}
-
-					else{
-						sprintf(split, "503-Out of Order");
-						if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-					}
-				}
-				else if(  strcmp(split, "HGT") == 0 )
-				{
-					if(state == 4){
-						char* s2 = strtok(NULL, " ");
-						char* s3 = strtok(NULL, " ");
-						if(atoi(s2) == 0 || atoi(s3) == 0){
-							if (sendto(sock, "501-Error in args, values must be nonzero", 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-						else
-						{
-  
-							sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
-							if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-								perror("send");
-						}
-					}
-
-					else{
-						sprintf(split, "503-Out of Order");
-						if (sendto(sock, split, 40 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-						}
-				}
-				else if(strcmp(split, "HELO") == 0){
-					if (sendto(sock, "200 HELO", 50 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-						perror("send");
-
-				}
-				else
-				{
-					if (sendto(sock, "500 - Unrecognized Command or missing args", 50 , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-						perror("send");
-				}//end big tedious if/else
-
-			}
-
-		}//end while
-	}//end fork
-
-	//back to the parent, we moce on to preparing TCP side (as per beej's guide)
 	//the structure here is beej's but I've filled it with my own logic
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
@@ -330,47 +112,50 @@ int main(int argc, char *args[])
 	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
 		exit(1);
 	}
+
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	OpenSSL_add_all_algorithms();
+
+
 	while(1) 
 	{  // main accept() loop
 
 		printf("main loop entered\n\n");
 		sin_size = sizeof their_addr;
+		BIO *bio;		
 		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 		if (new_fd == -1) {
 			continue;
 		}
 
-
-		inet_ntop(their_addr.ss_family,
-		get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
+		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
 		printf("server: got connection from %s\n", s);
-		
+
 		char buf[100];
-		if (send(new_fd, "201 HELO RDY", 13, 0) == -1)
-			perror("send");
-		numbytes = recv(new_fd, buf, 100, 0);
-		printf("received: %s\n", buf);
 
 
 		if (!fork()) { // this is the child process
 			close(sockfd); // child doesn't need the listener
 			printf("about to enter loop\n");
 			int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
-			char* split= strtok(buf, " "); //first token
-			
+			char* split;
+			if (send(new_fd, "201 HELO RDY", 13, 0) == -1)
+				perror("send");
+
 			int flag = 1;
 			while(flag){
 				numbytes = recv(new_fd, buf, 100, 0);
 
-				if(strcmp(split, "HELO") == 32){
-						if (send(new_fd, "200 HELO", 50 , 0) == -1)
-							perror("send");
+				if(strcmp(buf, "AUTH") == 32){
+					if (send(new_fd, "200 AUTH", 50 , 0) == -1)
+						perror("send");
 					flag=0;
 					
 				}
 				else{
-						if (send(new_fd, "499 INAVLID FIRST COMMAND", 50 , 0) == -1)
-							perror("send");
+					if (send(new_fd, "499 INAVLID FIRST COMMAND", 50 , 0) == -1)
+						perror("send");
 				}
 			}
 
@@ -542,8 +327,8 @@ int main(int argc, char *args[])
 									perror("send");
 						}
 					}
-					else if(strcmp(split, "HELO") == 0){
-						if (send(new_fd, "200 - Already Connected", 50 , 0) == -1)
+					else if(strcmp(split, "AUTH") == 0){
+						if (send(new_fd, "200 - Already Authenticated", 50 , 0) == -1)
 							perror("send");
 
 					}

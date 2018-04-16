@@ -6,9 +6,6 @@
 * and certain lines were taken from the guide.  I have noted where.
 **/
 
-
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -66,11 +63,8 @@ int main(int argc, char *argv[])
 
 	//we expect an initial response from the server.
 	BIO_read(bio, input, 100);
-	//buf[numbytes] = '\0';
-
 	printf("client: received '%s'\n",input);
-	BIO_write(bio, input, 100);
-	//TCP command-loop
+
 	while(flag)
 	{
 		//input
@@ -97,8 +91,7 @@ int main(int argc, char *argv[])
 		}
 	} //end while
 
+	BIO_free_all(bio);
 	return 0;
-
-
 
 } //end main
