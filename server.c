@@ -142,15 +142,69 @@ int main(int argc, char *args[])
 			char* split;
 			if (send(new_fd, "201 HELO RDY", 13, 0) == -1)
 				perror("send");
-
+			char username[64];
+			char password[64];
+			char write[128];
 			int flag = 1;
 			while(flag){
 				numbytes = recv(new_fd, buf, 100, 0);
-
+				printf("recieved: %s\n", buf);
 				if(strcmp(buf, "AUTH") == 32){
-					if (send(new_fd, "200 AUTH", 50 , 0) == -1)
-						perror("send");
-					flag=0;
+
+					send(new_fd, "334 dXNlcm5hbWU6", 50 , 0);
+					recv(new_fd, buf, 100, 0);
+					printf("recieved: '%s'\n", buf);
+					FILE *ifp, *ofp;
+					char *mode = "a+";
+					ifp = fopen(".user_pass", mode);
+					while (fscanf(ifp, "%s %s", username, password) != EOF) {
+						
+						if(strcmp(buf, username) == 0){
+							if (send(new_fd, " 334 cGFzc3dvcmQ6", 50 , 0) == -1)
+								perror("send");
+							recv(new_fd, buf, 100, 0);
+							printf("recieved: '%s'\n", buf);
+							if( strcmp(buf, password)==0 ){
+								flag=0;
+								send(new_fd, "PASSWORD CORRECT, WELCOME", 50 , 0);
+							}
+							else{
+								send(new_fd, "INVALID PASSWORD.  RETURN TO AUTH STEP.", 50 , 0);
+								flag=2;
+							}
+						}
+					  
+					}
+					if(flag == 1){
+						int r = rand();
+						r=(r%99999);
+						sprintf(write, "330 %d reconnect with AUTH again", r);
+						send(new_fd, write, 36, 0);
+						sprintf(password, "%d", r);
+	
+						BIO *bmem, *b64;
+						BUF_MEM *bptr;
+						b64 = BIO_new(BIO_f_base64());
+						bmem = BIO_new(BIO_s_mem());
+						b64 = BIO_push(b64, bmem);
+						BIO_write(b64, password, strlen(password));
+						BIO_flush(b64);
+						BIO_get_mem_ptr(b64, &bptr);
+						char *buff = (char *)malloc(bptr->length);
+						memcpy(buff, bptr->data, bptr->length-1);
+						buff[bptr->length-1] = 0;
+						BIO_free_all(b64);
+						sprintf(write, "%s %s\n",buf, buff);
+
+						printf("We will append '%s' to user_pass\n", write);
+						fprintf(ifp, write);
+						//next we write that stuff to .user_pass
+						//functionality coming later, comrade
+					}
+					if(flag==2) flag=1;
+					fclose(ifp);
+
+
 					
 				}
 				else{

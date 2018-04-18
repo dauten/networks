@@ -59,14 +59,22 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-
-
-	//we expect an initial response from the server.
-	BIO_read(bio, input, 100);
-	printf("client: received '%s'\n",input);
+	char* split;
+	char msg[10];
 
 	while(flag)
 	{
+		BIO_read(bio, input, 100);
+	//	buf[numbytes] = '\0';
+		printf("client: received '%s'\n",input);
+		memcpy(msg, input, 64);
+		split = strtok(msg, " ");
+
+		if(strcmp(input, "200 BYE")==0){
+			flag=0;
+		}
+
+
 		//input
 		printf("input:\n");
 		fgets(input, 64, stdin);
@@ -79,16 +87,28 @@ int main(int argc, char *argv[])
 				break;
 			}
 		} //end for
+		if(strcmp(split, "334")==0){
+			split = strtok(input, " ");
+			BIO *bmem, *b64;
+			BUF_MEM *bptr;
+
+			b64 = BIO_new(BIO_f_base64());
+			bmem = BIO_new(BIO_s_mem());
+			b64 = BIO_push(b64, bmem);
+			BIO_write(b64, split, strlen(split));
+			BIO_flush(b64);
+			BIO_get_mem_ptr(b64, &bptr);
+			char *buff = (char *)malloc(bptr->length);
+			memcpy(buff, bptr->data, bptr->length-1);
+			buff[bptr->length-1] = 0;
+			BIO_free_all(b64);
+			sprintf(input, "%s",buff);
+		}
+
 
 		//send, recieve, and output
 		BIO_write(bio, input, 100);
-		BIO_read(bio, input, 100);
-	//	buf[numbytes] = '\0';
-		printf("client: received '%s'\n",input);
 
-		if(strcmp(input, "200 BYE")==0){
-			flag=0;
-		}
 	} //end while
 
 	BIO_free_all(bio);
