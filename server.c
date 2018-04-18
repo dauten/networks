@@ -21,6 +21,9 @@
 #include <math.h>
 #include <sys/mman.h>
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include "openssl/bio.h"
 
 #define BACKLOG 10     // how many pending connections queue will hold
 
@@ -104,66 +107,19 @@ int main(int argc, char *args[])
 
 	//check that the user included arguments then copy them into our ports
 	if(argc != 2){
-		printf("usage: server <udp port>\n");
+
+		printf("usage: server <tcp port>\n");
 		exit(0);
 	}
+	char *tcpPort = args[1];
+	char *udpPort = args[2];
 
-	char *udpPort = args[1];
-	nextPort = atoi(args[1]);
+	//the structure here is beej's but I've filled it with my own logic
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	//listen for messages and return an ACK
-	struct sockaddr_in myUDPSocket, theirUDPSocket;
-	int sock= sizeof(theirUDPSocket);
-	uint slen = sizeof(theirUDPSocket);
-	char buf[512], old[512];
-	//create a UDP socket
-	if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-	{
-		perror(s);
-	}
-
-	memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
-	myUDPSocket.sin_family = AF_INET;
-	myUDPSocket.sin_port = htons(atoi(udpPort));
-	myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	//bind socket to port
-	if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
-	{
-		perror(s);
-	}
-
-	//listen for udp input and respond; forever (or until the program is force quit)
-	//this main loop just looks for port requests then sends client that port.
-	while(1){
-		// listen to our port and then process what we hear by tokenizing it
-		numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
-		if(numbytes == -1 || numbytes == 0){
-			perror("recv");
-			exit(1);
-		}
-		buf[numbytes] = '\0';
-
-		if(  buf[0] == '#' )
-		{
-
-			nextPort++;
-			if(!fork()){
-
-				//format to text and tell client what port to use
-				sprintf(buf, "%d", nextPort);
-				if (sendto(sock, buf, 4  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-					perror("send");
-
-				//child will not need old socket
-				close(sock);
-
-
-				//listen for messages and return an ACK
-				struct sockaddr_in myUDPSocket, theirUDPSocket;
-				int sock= sizeof(theirUDPSocket);
-				uint slen = sizeof(theirUDPSocket);
-				char buf[512], old[512];
 
 				//create a new UDP socket
 				if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
@@ -183,67 +139,306 @@ int main(int argc, char *args[])
 				}
 
 
-				//now we have a new socket up, this loop in child proces will listen to its user
-				//and process all commands for it.
-				while(1){
-					//declaration for timeout.  modified from linux man pages (https://linux.die.net/man/2/select)
-					fd_set readfds;
-					int n;
-					struct timeval tv;
-					FD_ZERO(&readfds);
-					FD_SET(sock,&readfds);
-					n=sock+1;
-					tv.tv_sec=0;
-					tv.tv_usec = 100000;
 
-
-					int received = select(n, &readfds, NULL, NULL, &tv);
-
-
-					if(FD_ISSET(sock, &readfds) ){
-						// listen to our port and then process what we hear by tokenizing it
-						numbytes = recvfrom(sock, buf, 512, 0,(struct sockaddr *) &theirUDPSocket, &slen);
-						if(numbytes == -1 || numbytes == 0){
-							perror("recv");
-							exit(1);
-						}
-						buf[numbytes] = '\0';
-						if(buf[0] != 0){
-							printf("\nserver: received %s\ton %f.  %d bytes.\n", buf, (float)nextPort, buf[0]);
-							printf("sending ack");
-							if (sendto(sock, "@ACK", 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1);
-								perror("send");	
-						}
-					}
-					
-					if(buf[1] == '!'){
-						struct message temp[100];
-						memcpy(temp, shqueue, 100);
-						temp[0].msg = "OMG IT WORKED";
-						temp[0].port = 9002;
-						memcpy(shqueue, temp, 100);	
-
-					}
-					struct message tmp[100];
-					memcpy(tmp, shqueue, 100);
-					if(tmp[0].port == nextPort){
-
-						if (sendto(sock, tmp[0].msg, 99  , 0,(struct sockaddr *) &theirUDPSocket, slen) == -1)
-							perror("send");
-						tmp[0].port = 0;
-						memcpy(shqueue, tmp, 100);
-
-					}
-					memset(buf, '\0', 512);
-					 	
-
-				}
-			}
-		}
+	if (listen(sockfd, BACKLOG) == -1) {
+		perror("listen");
+		exit(1);
+	}
+	sa.sa_handler = sigchld_handler; // reap all dead processes
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+		exit(1);
 	}
 
-	close(new_fd);
-	exit(0);
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	OpenSSL_add_all_algorithms();
+
+
+	while(1) 
+	{  // main accept() loop
+
+		printf("main loop entered\n\n");
+		sin_size = sizeof their_addr;
+		BIO *bio;		
+		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+		if (new_fd == -1) {
+			continue;
+		}
+
+		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
+		printf("server: got connection from %s\n", s);
+
+		char buf[100];
+
+
+		if (!fork()) { // this is the child process
+			close(sockfd); // child doesn't need the listener
+			printf("about to enter loop\n");
+			int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
+			char* split;
+			if (send(new_fd, "201 HELO RDY", 13, 0) == -1)
+				perror("send");
+			char username[64];
+			char password[64];
+			char write[128];
+			int flag = 1;
+			while(flag){
+				numbytes = recv(new_fd, buf, 100, 0);
+				printf("recieved: %s\n", buf);
+				if(strcmp(buf, "AUTH") == 32){
+
+					send(new_fd, "334 dXNlcm5hbWU6", 50 , 0);
+					recv(new_fd, buf, 100, 0);
+					printf("recieved: '%s'\n", buf);
+					FILE *ifp, *ofp;
+					char *mode = "a+";
+					ifp = fopen(".user_pass", mode);
+					while (fscanf(ifp, "%s %s", username, password) != EOF) {
+						
+						if(strcmp(buf, username) == 0){
+							if (send(new_fd, " 334 cGFzc3dvcmQ6", 50 , 0) == -1)
+								perror("send");
+							recv(new_fd, buf, 100, 0);
+							printf("recieved: '%s'\n", buf);
+							if( strcmp(buf, password)==0 ){
+								flag=0;
+								send(new_fd, "PASSWORD CORRECT, WELCOME", 50 , 0);
+							}
+							else{
+								send(new_fd, "INVALID PASSWORD.  RETURN TO AUTH STEP.", 50 , 0);
+								flag=2;
+							}
+						}
+					  
+					}
+					if(flag == 1){
+						int r = rand();
+						r=(r%99999);
+						sprintf(write, "330 %d reconnect with AUTH again", r);
+						send(new_fd, write, 36, 0);
+						sprintf(password, "%d", r);
+	
+						BIO *bmem, *b64;
+						BUF_MEM *bptr;
+						b64 = BIO_new(BIO_f_base64());
+						bmem = BIO_new(BIO_s_mem());
+						b64 = BIO_push(b64, bmem);
+						BIO_write(b64, password, strlen(password));
+						BIO_flush(b64);
+						BIO_get_mem_ptr(b64, &bptr);
+						char *buff = (char *)malloc(bptr->length);
+						memcpy(buff, bptr->data, bptr->length-1);
+						buff[bptr->length-1] = 0;
+						BIO_free_all(b64);
+						sprintf(write, "%s %s\n",buf, buff);
+
+						printf("We will append '%s' to user_pass\n", write);
+						fprintf(ifp, write);
+						//next we write that stuff to .user_pass
+						//functionality coming later, comrade
+					}
+					if(flag==2) flag=1;
+					fclose(ifp);
+
+
+					
+				}
+				else{
+					if (send(new_fd, "499 INAVLID FIRST COMMAND", 50 , 0) == -1)
+						perror("send");
+				}
+			}
+
+			while(1){
+				numbytes = recv(new_fd, buf, 100, 0);
+
+				buf[numbytes] = '\0';
+				printf("server: received %s", buf);
+		
+				split= strtok(buf, " "); //first token
+
+
+				if(split[0]!=0){
+					if(  strcmp(split, "HELP") == 0)
+					{
+						if (send(new_fd, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0) == -1)
+							perror("send");
+					}
+					else if(  strcmp(split, "BYE") == 0)
+					{
+						if (send(new_fd, "200 BYE", 10 , 0) == -1)
+							perror("send");
+						flag = 0;
+					}	
+					else if(  strcmp(split, "CIRCLE") == 0)
+					{
+						if (send(new_fd, "210 CIRCLE ready", 10 , 0) == -1)
+							perror("send");
+						state = 2;
+					}
+					else if(  strcmp(split, "SPHERE") == 0)
+					{
+						if (send(new_fd, "220 SPHERE ready", 10 , 0) == -1)
+							perror("send");
+						state = 3;
+					}
+					else if(  strcmp(split, "CYLINDER") == 0)
+					{
+						if (send(new_fd, "230 CYLINDER ready", 12 , 0) == -1)
+							perror("send");
+						state = 4;
+					}
+					else if(  strcmp(split, "AREA") == 0 )
+					{
+						if(state == 2){
+
+							char* s2 = strtok(NULL, " ");
+
+							if(atoi(s2) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else
+							{
+								sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+							}
+						}
+						else if(state == 4){
+							char* s2 = strtok(NULL, " ");
+							char* s3 = strtok(NULL, " ");
+							printf(":%f:", atof(s2));
+							if(atoi(s2) == 0 || atoi(s3) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else
+							{
+								sprintf(split, "250-Cylinder %f (%f)",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)),atof(s3) );
+									if (send(new_fd, split, 40 , 0) == -1)
+										perror("send");
+							}
+						}
+						else
+						{
+							sprintf(split, "503-Out of Order");
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+						}
+					}
+					else if(  strcmp(split, "CIRC") == 0 )
+					{
+						if(state == 2){
+							char* s2 = strtok(NULL, " ");
+							if(atoi(s2) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else{
+								sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+							}
+						}
+
+						else{
+							sprintf(split, "503-Out of Order");
+							if (send(new_fd, split, 40 , 0) == -1)
+								perror("send");
+						}
+					}
+					else if(  strcmp(split, "VOL") == 0 )
+					{
+						if(state == 3){
+							char* s2 = strtok(NULL, " ");
+							if(atoi(s2) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else
+							{  
+								sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+							}
+						}
+
+						else{
+							sprintf(split, "503-Out of Order");
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+						}
+					}
+					else if(  strcmp(split, "RAD") == 0 )
+					{
+						if(state == 3){
+							char* s2 = strtok(NULL, " ");
+				
+							if(atoi(s2) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else
+							{  
+								sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+							}
+						}
+
+						else
+						{
+							sprintf(split, "503-Out of Order");
+							if (send(new_fd, split, 40 , 0) == -1)
+							perror("send");
+						}
+					}
+					else if(  strcmp(split, "HGT") == 0 )
+					{
+						if(state == 4){
+							char* s2 = strtok(NULL, " ");
+							char* s3 = strtok(NULL, " ");
+							if(atoi(s2) == 0 || atoi(s3) == 0){
+								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+									perror("send");
+							}
+							else
+							{  
+								sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+							}
+						}
+
+						else{
+							sprintf(split, "503-Out of Order");
+								if (send(new_fd, split, 40 , 0) == -1)
+									perror("send");
+						}
+					}
+					else if(strcmp(split, "AUTH") == 0){
+						if (send(new_fd, "200 - Already Authenticated", 50 , 0) == -1)
+							perror("send");
+
+					}
+					else
+					{
+						if (send(new_fd, "500 - Unrecognized Command or missing args", 50 , 0) == -1)
+							perror("send");
+					}//end else
+				}//end if-else-if-else
+			}//end child while
+		}//end fork
+
+
+	} //end accept while
+
+	close(new_fd);  // parent doesn't need this
+	printf("closing parent\n");
+
 
 	return 0;
 
