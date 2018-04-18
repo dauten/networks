@@ -180,7 +180,7 @@ int main(int argc, char *args[])
 						r=(r%99999);
 						sprintf(write, "330 %d reconnect with AUTH again", r);
 						send(new_fd, write, 36, 0);
-						sprintf(password, "%d", r);
+						sprintf(password, "%d", r+447);	//we salt the password
 	
 						BIO *bmem, *b64;
 						BUF_MEM *bptr;
