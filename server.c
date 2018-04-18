@@ -1,6 +1,6 @@
 /**
 * Author:  Dale Auten
-* Modified: 3/27/18
+* Modified: 2/14/18
 * Desc: Server Side half of a project to communicate through sockets bound to ports on a linux machine.
 * Beej's Guide to Network Programming (https://beej.us/guide/bgnet/) was referenced heavily
 * and certain lines were taken from the guide.  I have noted where.
@@ -19,15 +19,12 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <math.h>
-#include <sys/mman.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "openssl/bio.h"
 
 #define BACKLOG 10     // how many pending connections queue will hold
-
-uint nextPort = 0;
 
 //two functions from beej's guide
 void sigchld_handler(int s)
@@ -49,34 +46,8 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-struct message {
-	char *msg;
-	uint port;
-};
 
-struct user {
-	char *user;
-	char *nick;
-	char mode;
-	uint port;
-};
-
-
-void* create_shared_memory(size_t size) {
-  // Our memory buffer will be readable and writable:
-  int protection = PROT_READ | PROT_WRITE;
-
-  // The buffer will be shared (meaning other processes can access it), but
-  // anonymous (meaning third-party processes cannot obtain an address for it),
-  // so only this process and its children will be able to use it:
-  int visibility = MAP_ANONYMOUS | MAP_SHARED;
-
-  // The remaining parameters to `mmap()` are not important for this use case,
-  // but the manpage for `mmap` explains their purpose.
-  return mmap(NULL, size, protection, visibility, 0, 0);
-}
-
-
+	
 int main(int argc, char *args[])
 {
 
@@ -89,25 +60,10 @@ int main(int argc, char *args[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
-	
-	struct message queue[100];	// we have a list of the 10 most recent messages.  this will be
-					// shared between the processes.  when a process needs to send
-					// a message to a person or people not on its own port
-	struct user userlist[64];	// it will access the shared user list and fill the queue
-	uint *usercount = 0;		// with the appropriate messages and ports
-					// all processes regularly poll the queue and if they have
-					// a message to send they send it.
-	void* shqueue = create_shared_memory(128);
-	void* shuserlist = create_shared_memory(128);
-	void* shusercount = create_shared_memory(128);
-	memcpy(shqueue, queue, sizeof(queue));
-	memcpy(shuserlist, userlist, sizeof(userlist));
-	//memcpy(shusercount, usercount, sizeof(usercount));
 
 
 	//check that the user included arguments then copy them into our ports
 	if(argc != 2){
-
 		printf("usage: server <tcp port>\n");
 		exit(0);
 	}
@@ -120,25 +76,31 @@ int main(int argc, char *args[])
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
+	if ((rv = getaddrinfo(NULL, tcpPort, &hints, &servinfo)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		return 1;
+	}
+	// loop through all the results and bind to the first we can
+	for(p = servinfo; p != NULL; p = p->ai_next) {
+		if ((sockfd = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) {
+			continue;
+		}
 
-				//create a new UDP socket
-				if ((sock=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-				{
-					perror(s);
-				}
+		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,sizeof(int)) == -1) {
+			exit(1);
+		}
 
-				memset((char *) &myUDPSocket, 0, sizeof(myUDPSocket));
-				myUDPSocket.sin_family = AF_INET;
-				myUDPSocket.sin_port = htons(nextPort);
-				myUDPSocket.sin_addr.s_addr = htonl(INADDR_ANY);
+		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+			close(sockfd);
+			continue;
+		}
 
-				//bind socket to port
-				if( bind(sock, (struct sockaddr*)&myUDPSocket, sizeof(myUDPSocket) ) == -1)
-				{
-					perror(s);
-				}
-
-
+		break;
+	}
+	freeaddrinfo(servinfo); // all done with this structure
+	if (p == NULL)  {
+		exit(1);
+	}
 
 	if (listen(sockfd, BACKLOG) == -1) {
 		perror("listen");
@@ -198,7 +160,7 @@ int main(int argc, char *args[])
 					while (fscanf(ifp, "%s %s", username, password) != EOF) {
 						
 						if(strcmp(buf, username) == 0){
-							if (send(new_fd, " 334 cGFzc3dvcmQ6", 50 , 0) == -1)
+							if (send(new_fd, "334 cGFzc3dvcmQ6", 50 , 0) == -1)
 								perror("send");
 							recv(new_fd, buf, 100, 0);
 							printf("recieved: '%s'\n", buf);
@@ -438,9 +400,7 @@ int main(int argc, char *args[])
 
 	close(new_fd);  // parent doesn't need this
 	printf("closing parent\n");
-
+	
 
 	return 0;
-
 }//end main
-

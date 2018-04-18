@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
 	char *SERVER = argv[1];
 	uint PORT = atoi(argv[2]);
 	int flag = 1;
+	char input[128];
 
 	// check if user gave needed args
 	if (argc != 3) {
@@ -133,29 +134,5 @@ int main(int argc, char *argv[])
 
 	BIO_free_all(bio);
 	return 0;
-
-	if(depth > 10){
-		printf("Sorry, that message could not be delivered.  Try again later.");
-		return 1;	// error return message
-	}
-
-	sendto(udpSock, input, 512 , 0 , (struct sockaddr *) &otherUDP, slen);
-	memset(input,'\0', 512);
-/*
-	while(!ackFlag){
-		sleep(1);
-		//lack of ACK, resend.
-		//it is ok if the server DID receive the message and an ACK is on the way,
-		//as long as the server receives the message at some point its its job to
-		//sort out duplicates, and we should receive the ACK meant for the first msg
-		//for the second one we send
-		return sendMessage(udpSock, input, otherUDP, slen, depth+1);
-		//so long as we don't stack overflow or something we should exit the function call eventually so
-		
-	}
-
-	ackFlag = 0;*/
-	return 0;
-
 
 }
