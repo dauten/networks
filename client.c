@@ -1,12 +1,8 @@
 /**
 * Author:  Dale Auten
-<<<<<<< HEAD
-* Modified: 3/27/18
-* Desc: Client Side half of a project to communicate through sockets bound to ports on a linux machine.
-=======
-* Modified: 4/14/18
+* Modified: 4/19/18
 * Desc: Client Side half of a project to communicate through sockets bound to ports on a linux machine through TLS
->>>>>>> PR03
+
 * Beej's Guide to Network Programming (https://beej.us/guide/bgnet/) was referenced heavily
 * and certain lines were taken from the guide.  I have noted where.
 **/
@@ -41,6 +37,16 @@ struct args_struct {
 uint sendMessage(int udpSock, char *input, struct sockaddr_in otherUDP, uint slen, int depth);
 void inputParser(int udpSock, struct sockaddr_in otherUDP, uint slen);
 void *listener(void * args);
+
+-//function from beej's guide
+void *get_in_addr(struct sockaddr *sa)
+{
+	if (sa->sa_family == AF_INET) {
+		return &(((struct sockaddr_in*)sa)->sin_addr);
+	}
+
+	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
 
 int main(int argc, char *argv[])
 {
@@ -82,6 +88,20 @@ int main(int argc, char *argv[])
 
 	char* split;
 	char msg[10];
+
+	// init ssl
+	SSL_load_errorstring();
+	OpenSSL_add_ssl_algorithms();
+	const SSL_METHOD *method = TLSv1_2_client_method();
+	SSL *ssl = SSL_CTX_new(method);
+	if(!ctx){
+		printf("no context/method\n");
+		exit(1);
+	}
+	SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+	SSL_CTS_set_verify_depth(ctx,4);	
+	SSL_CTX_load_verify_locations(ctx, "fd.pem", NULL);
+	SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_COMPRESSION);
 
 	while(flag)
 	{
