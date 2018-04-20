@@ -27,7 +27,7 @@
 #define BACKLOG 10     // how many pending connections queue will hold
 void init_openssl()
 { 
-    SSL_library_init();
+
     SSL_load_error_strings();	
     OpenSSL_add_ssl_algorithms();
 }
@@ -42,7 +42,7 @@ SSL_CTX *create_context()
     const SSL_METHOD *method;
     SSL_CTX *ctx;
 
-    method = SSLv1_2_server_method();
+    method = SSLv23_server_method();  
 
     ctx = SSL_CTX_new(method);
     if (!ctx) {
@@ -59,12 +59,12 @@ void configure_context(SSL_CTX *ctx)
     SSL_CTX_set_ecdh_auto(ctx, 1);
 
     /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "fd.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, "fd.crt", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
 	exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "priv.pem", SSL_FILETYPE_PEM) <= 0 ) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, "fd.key", SSL_FILETYPE_PEM) <= 0 ) {
         ERR_print_errors_fp(stderr);
 	exit(EXIT_FAILURE);
     }
@@ -172,7 +172,6 @@ int main(int argc, char *args[])
 			continue;
 		}
 
-
 		SSL_CTX *ctx;
 		SSL *ssl;
 
@@ -233,6 +232,7 @@ int main(int argc, char *args[])
 							if( strcmp(buf, password)==0 ){
 								flag=0;
 								send(new_fd, "PASSWORD CORRECT, WELCOME", 50 , 0);
+								break;
 							}
 							else{
 								send(new_fd, "INVALID PASSWORD.  RETURN TO AUTH STEP.", 50 , 0);
@@ -246,8 +246,7 @@ int main(int argc, char *args[])
 						r=(r%99999);
 						sprintf(write, "330 %d reconnect with AUTH again", r);
 						send(new_fd, write, 36, 0);
-						sprintf(password, "%d", r+447);	//we salt the password
-	
+						sprintf(password, "%d", r);
 						BIO *bmem, *b64;
 						BUF_MEM *bptr;
 						b64 = BIO_new(BIO_f_base64());
