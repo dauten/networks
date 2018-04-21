@@ -25,21 +25,7 @@
 
 #include <openssl/x509v3.h> 
 
-void configure_context(SSL_CTX *ctx)
-{
-    SSL_CTX_set_ecdh_auto(ctx, 1);
 
-    /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "fd.crt", SSL_FILETYPE_PEM) <= 0) {
-        ERR_print_errors_fp(stderr);
-	exit(EXIT_FAILURE);
-    }
-
-    if (SSL_CTX_use_PrivateKey_file(ctx, "fd.key", SSL_FILETYPE_PEM) <= 0 ) {
-        ERR_print_errors_fp(stderr);
-	exit(EXIT_FAILURE);
-    }
-}
 //two functions from beej's guide
 void sigchld_handler(int s)
 {
@@ -128,38 +114,31 @@ int main(int argc, char *args[])
 	}
 
 
+	SSL_CTX *context;
+	SSL_library_init();
 
-
-	SSL_CTX *ctx;                                                                                                                          
-    SSL_library_init();
- 
-	/* init */                                                                                                                             
-	SSL_load_error_strings();                                                                                                              
-	OpenSSL_add_all_algorithms();                                                                                                          
+	OpenSSL_add_all_algorithms();
+	SSL_load_error_strings();
+	if((context=SSL_CTX_new(TLSv1_2_server_method()))==NULL) printf("context may not have been setup correctly\n");
 
 	
-	if (!(ctx = SSL_CTX_new(TLSv1_2_server_method() ))) {                                                                                                    
-	exit(1);                                                                                                                             
-	}
-
-	/* configure context */                                                                                                                
-	//  SSL_CTX_set_ecdh_auto(ctx, 1);
-
-	/* Set the key and cert */                                                                                                             
-	if (SSL_CTX_use_certificate_file(ctx, "example.crt", SSL_FILETYPE_PEM) <= 0) {                                                            
-	exit(1);
-	}
-
-	if (SSL_CTX_use_PrivateKey_file(ctx, "fd.key", SSL_FILETYPE_PEM) <= 0) {                                                              
-	exit(1);
-	}                                                                                                                                      
-
-	/* verify private key */
-	if ( !SSL_CTX_check_private_key(ctx) )
+	if ( SSL_CTX_use_certificate_file(context, "example.crt", SSL_FILETYPE_PEM) <= 0 )
 	{
-	fprintf(stderr, "Private key does not match the public certificate\n");
-	abort();
+		printf("We failed to get the certificate file\n");
 	}
+	/* set the private key from KeyFile (may be the same as CertFile) */
+	if ( SSL_CTX_use_PrivateKey_file(context, "fd.key", SSL_FILETYPE_PEM) <= 0 )
+	{
+		printf("We failed to get the key file\n");
+	}
+	/* verify private key */
+	if ( !SSL_CTX_check_private_key(context) )
+	{
+		printf("Key check failed\n");
+	}
+
+	SSL *ssl;
+
 
 
 	while(1) 
@@ -175,55 +154,31 @@ int main(int argc, char *args[])
 
 		char buf[100];
 
-		memcpy(buf, "this is sent securely", 64);
-
-		printf("socket formed and connected, negotiating ssl...\n");
-		SSL *ssl;			                                                            
-		/* create ssl instance from context */                                                                                               
-		ssl = SSL_new(ctx);
-		if(ssl) printf("ssl made\n");
-		/* assign socket to ssl intance */                                                                                                   
-		SSL_set_fd(ssl, new_fd);                                                                                                             
-
-                                                                                       
-  		  if ( SSL_accept(ssl) == -1 )     /* do SSL-protocol accept */
-   		     ERR_print_errors_fp(stderr);                                                                                                                   
-		/* perform ssl reads / writes */
-
-
-		X509 *cert;
-		char *line;
-
-		cert = SSL_get_peer_certificate(ssl); /* Get certificates (if available) */
-		if ( cert != NULL )
-		{
-		printf("Server certificates:\n");
-		line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-		printf("Subject: %s\n", line);
-		free(line);
-		line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-		printf("Issuer: %s\n", line);
-		free(line);
-		X509_free(cert);
-		}
-		else
-		printf("No certificates.\n");
-
-
-		printf("READING FROM SSL: \n");
-		SSL_read(ssl, buf, sizeof(buf));
-
-            printf("Client msg: \"%s\"\n", buf);
-            SSL_write(ssl, buf, strlen(buf)); 
-
-
-		/* free ssl instance */
-		SSL_free(ssl);
-
-
-
 		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
 		printf("server: got connection from %s\n", s);
+
+
+		ssl = SSL_new(context);
+		SSL_set_fd(ssl, new_fd);
+		
+		if(SSL_accept < 0) printf("We had some trouble accepting that client over SSL\n");
+
+
+		// to double check, we will get the certificate from the server
+		X509 *cert = SSL_get_peer_certificate(ssl);
+		if(cert != NULL){
+			printf("Certificate confirmed\n");
+		}
+		else{
+			printf("No certificate\n");
+		}
+
+		SSL_read(ssl, buf, 64);
+		printf("The client just sent us %s over SSL\nWe'll respond in kind\n");
+		sprintf(buf, "fuck you");
+		SSL_write(ssl, buf, 64);
+
+		printf("We sent our message using TLS and should be set up to communicate further\n");
 
 	
 

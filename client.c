@@ -54,96 +54,60 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	//try to set up the port.  from beej's guide
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	if ((rv = getaddrinfo(argv[1], argv[2], &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return 1;
+	struct hostent *host;
+	struct sockaddr_in addr;
+
+	if ( (host = gethostbyname(SERVER)) == NULL )
+		{
+		perror(SERVER);
+		abort();
 	}
-	for(p = servinfo; p != NULL; p = p->ai_next) {
-		if ((tcpSock = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) {
-			perror("client: socket");
-			continue;
-		}
-		if (connect(tcpSock, p->ai_addr, p->ai_addrlen) == -1) {
-			close(tcpSock);
-			perror("client: connect");
-			continue;
-		}
-
-		break;
-	}//end for
-
-
-	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect\n");
-		return 2;
+	tcpSock = socket(PF_INET, SOCK_STREAM, 0);
+	bzero(&addr, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(PORT);
+	addr.sin_addr.s_addr = *(long*)(host->h_addr);
+	if ( connect(tcpSock, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
+	{
+		close(tcpSock);
+		perror(SERVER);
+		abort();
 	}
 
-	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),s, sizeof s);
-
-	freeaddrinfo(servinfo);
-
+	// create variables and load in openssl
+	SSL_CTX *context;
 	SSL *ssl;
-	SSL_CTX *ctx;
-	const SSL_METHOD *method;
-	X509_VERIFY_PARAM *param;
+	SSL_library_init();
 
-	/* init */
-    SSL_library_init();
- 
-	SSL_load_error_strings();
+	// load functions and create our context, printing error message on failure
 	OpenSSL_add_all_algorithms();
-
-	/* create context */
+	SSL_load_error_strings();
+	SSL_METHOD *method;
 	method = TLSv1_2_client_method();
+	if((context=SSL_CTX_new(method))==NULL) printf("context may not have been setup correctly\n");
+	
+	// create our SSL conenction using our context
+	ssl=SSL_new(context);
+	SSL_set_fd(ssl, tcpSock);
 
-	if (!(ctx = SSL_CTX_new(method))) {
-	exit(1);
+	// see if we connect
+	if(SSL_connect(ssl) == -1) printf("SSL connection may have failed\n");
+	printf("If we got no errors then we are allegedly connected with %s encryption.  We will send a msg to test\n", SSL_get_cipher(ssl));
+	
+	// to double check, we will get the certificate from the server
+	X509 *cert = SSL_get_peer_certificate(ssl);
+	if(cert != NULL){
+		printf("Certificate confirmed\n");
 	}
-
-
-
-/* create ssl instance from context */
-	ssl = SSL_new(ctx);
-	if(ssl) printf("ssl made\n");
-
-   X509 *cert;
-    char *line;
- 
-    cert = SSL_get_peer_certificate(ssl); /* get the server's certificate */
-    if ( cert != NULL )
-    {
-        printf("Server certificates:\n");
-        line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-        printf("Subject: %s\n", line);
-        free(line);       /* free the malloc'ed string */
-        line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-        printf("Issuer: %s\n", line);
-        free(line);       /* free the malloc'ed string */
-        X509_free(cert);     /* free the malloc'ed certificate copy */
-    }
-    else
-        printf("Info: No client certificates configured.\n");
-
-
-
-	SSL_write(ssl, "FUCK YOU", 128);
+	else{
+		printf("Unable to obtain certificate\n");
+	}
 	
-	
-
+	// send a sample message and receive/print the response
+	SSL_write(ssl, "This is being sent over TLS", 64);
 	SSL_read(ssl, input, 64);
-SSL_read(ssl, input, 64);
-	printf("FROM SSL: %s\n", input);
 
-
-
-
-	SSL_free(ssl);
-	SSL_CTX_free(ctx);
-	EVP_cleanup();
+	printf("We recieved over TLS: %s\nWe should be connected and ready to send encypted messages now\n");
 
 
 	
