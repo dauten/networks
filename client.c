@@ -22,7 +22,7 @@
 #include <openssl/err.h>
 #include "openssl/bio.h"
 #include <arpa/inet.h>
-
+#include <openssl/sha.h>
 #include <openssl/x509v3.h>
 
 
@@ -39,6 +39,15 @@ int main(int argc, char *argv[])
 	char input[64];
 	int flag = 1;
 
+	//hash demo
+	char *str = "Hashed String";
+	SHA_CTX ctx;
+	SHA1_Init(&ctx);
+	SHA1_Update(&ctx, str, sizeof(str));
+	unsigned char hash[SHA_DIGEST_LENGTH];
+	SHA1_Final(hash, &ctx);
+	printf("Got the hash: %02x %02x\n", hash[0], hash[1]);
+	
 	// check if user gave needed args
 	if (argc != 3) {
 		fprintf(stderr,"usage: client <hostname> <port>\n");
