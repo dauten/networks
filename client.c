@@ -65,6 +65,8 @@ int main(int argc, char *argv[])
 		abort();
 	}
 
+	printf("About to configure and negotiate SSL\n");
+
 	// create variables and load in openssl
 	SSL_CTX *context;
 	SSL *ssl;
@@ -93,16 +95,12 @@ int main(int argc, char *argv[])
 	else{
 		printf("Unable to obtain certificate\n");
 	}
-	
-	// send a sample message and receive/print the response
-	SSL_write(ssl, "fuck you", 64);
-	SSL_read(ssl, input, 64);
 
 	printf("We recieved over TLS: %s\nWe should be connected and ready to send encypted messages now\n");
 
 
 	
-	send(tcpSock, "$$$$$$$$", 9, 0);
+	SSL_write(ssl, "HANDSHAKE", 64);
 	char* split;
 	char msg[10];
 
@@ -111,7 +109,7 @@ int main(int argc, char *argv[])
 
 	while(flag)
 	{
-		recv(tcpSock, input, 512, 0);
+		SSL_write(ssl, input, 512);
 	//	buf[numbytes] = '\0';
 		printf("client: received '%s'\n",input);
 		memcpy(msg, input, 64);
@@ -154,7 +152,7 @@ int main(int argc, char *argv[])
 
 
 		//send, recieve, and output
-		send(tcpSock, input, 100, 0);
+		SSL_write(ssl, input, 100);
 
 } //end while
 

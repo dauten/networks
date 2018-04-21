@@ -169,12 +169,7 @@ int main(int argc, char *args[])
 			printf("No certificate\n");
 		}
 
-		SSL_read(ssl, buf, 64);
-		printf("The client just sent us %s over SSL\nWe'll respond in kind\n");
-		sprintf(buf, "no, fuck YOU");
-		SSL_write(ssl, buf, 64);
-
-		printf("We sent our message using TLS and should be set up to communicate further\n");
+		printf("Using TLS we should be set up to communicate\n");
 
 	
 
@@ -183,37 +178,38 @@ int main(int argc, char *args[])
 			printf("about to enter loop\n");
 			int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
 			char* split;
-			if (send(new_fd, "201 HELO RDY", 13, 0) == -1)
+			if (SSL_write(ssl, "201 HELO RDY", 13) == -1)
 				perror("send");
 			char username[64];
 			char password[64];
 			char write[128];
 			int flag = 1;
 			while(flag){
-				numbytes = recv(new_fd, buf, 100, 0);
-				printf("recieved: %s\n", buf);
-				if(strcmp(buf, "AUTH") == 32){
+				numbytes = SSL_read(ssl, buf, 100);
+				printf("recieved: '%s'(hope its auth)\n", buf);
+				if(strcmp(buf, "AUTH") == 0){
 
-					send(new_fd, "334 dXNlcm5hbWU6", 50 , 0);
-					recv(new_fd, buf, 100, 0);
-					printf("recieved: '%s'\n", buf);
+					SSL_write(ssl, "334 dXNlcm5hbWU6", 50);
+					SSL_read(ssl, buf, 100);
+					printf("recieved: '%s'(hope its un)\n", buf);
 					FILE *ifp, *ofp;
 					char *mode = "a+";
 					ifp = fopen(".user_pass", mode);
 					while (fscanf(ifp, "%s %s", username, password) != EOF) {
 						
+						printf("The cmp of %s and %s is %d\n", username, buf, strcmp(buf, username));
 						if(strcmp(buf, username) == 0){
-							if (send(new_fd, "334 cGFzc3dvcmQ6", 50 , 0) == -1)
+							if (SSL_write(ssl, "334 cGFzc3dvcmQ6", 50) == -1)
 								perror("send");
-							recv(new_fd, buf, 100, 0);
-							printf("recieved: '%s'\n", buf);
+							SSL_read(ssl, buf, 100);
+							printf("recieved: '%s'(hope its pw)\n", buf);
 							if( strcmp(buf, password)==0 ){
 								flag=0;
-								send(new_fd, "PASSWORD CORRECT, WELCOME", 50 , 0);
+								SSL_write(ssl, "PASSWORD CORRECT, WELCOME", 50);
 								break;
 							}
 							else{
-								send(new_fd, "INVALID PASSWORD.  RETURN TO AUTH STEP.", 50 , 0);
+								SSL_write(ssl, "INVALID PASSWORD.  RETURN TO AUTH STEP.", 50);
 								flag=2;
 							}
 						}
@@ -223,7 +219,7 @@ int main(int argc, char *args[])
 						int r = rand();
 						r=(r%99999);
 						sprintf(write, "330 %d reconnect with AUTH again", r);
-						send(new_fd, write, 36, 0);
+						SSL_write(ssl, write, 36);
 						sprintf(password, "%d", r);
 						BIO *bmem, *b64;
 						BUF_MEM *bptr;
@@ -251,13 +247,13 @@ int main(int argc, char *args[])
 					
 				}
 				else{
-					if (send(new_fd, "499 INAVLID FIRST COMMAND", 50 , 0) == -1)
+					if (SSL_write(ssl, "499 INAVLID FIRST COMMAND", 50) == -1)
 						perror("send");
 				}
 			}
 
 			while(1){
-				numbytes = recv(new_fd, buf, 100, 0);
+				numbytes = SSL_read(ssl, buf, 100);
 
 				buf[numbytes] = '\0';
 				printf("server: received %s", buf);
@@ -268,30 +264,30 @@ int main(int argc, char *args[])
 				if(split[0]!=0){
 					if(  strcmp(split, "HELP") == 0)
 					{
-						if (send(new_fd, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99  , 0) == -1)
+						if (SSL_write(ssl, "200 Select shape (CIRCLE, SPHERE, OR CYLINDER) and enter command (AREA, CIRC, VOL, RAD, HGT).", 99) == -1)
 							perror("send");
 					}
 					else if(  strcmp(split, "BYE") == 0)
 					{
-						if (send(new_fd, "200 BYE", 10 , 0) == -1)
+						if (SSL_write(ssl, "200 BYE", 10) == -1)
 							perror("send");
 						flag = 0;
 					}	
 					else if(  strcmp(split, "CIRCLE") == 0)
 					{
-						if (send(new_fd, "210 CIRCLE ready", 10 , 0) == -1)
+						if (SSL_write(ssl, "210 CIRCLE ready", 10) == -1)
 							perror("send");
 						state = 2;
 					}
 					else if(  strcmp(split, "SPHERE") == 0)
 					{
-						if (send(new_fd, "220 SPHERE ready", 10 , 0) == -1)
+						if (SSL_write(ssl, "220 SPHERE ready", 10) == -1)
 							perror("send");
 						state = 3;
 					}
 					else if(  strcmp(split, "CYLINDER") == 0)
 					{
-						if (send(new_fd, "230 CYLINDER ready", 12 , 0) == -1)
+						if (SSL_write(ssl, "230 CYLINDER ready", 12) == -1)
 							perror("send");
 						state = 4;
 					}
@@ -302,13 +298,13 @@ int main(int argc, char *args[])
 							char* s2 = strtok(NULL, " ");
 
 							if(atoi(s2) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else
 							{
 								sprintf(split, "250-Circle, %f", atof(s2)*atof(s2) * 3.1415);
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 							}
 						}
@@ -317,20 +313,20 @@ int main(int argc, char *args[])
 							char* s3 = strtok(NULL, " ");
 							printf(":%f:", atof(s2));
 							if(atoi(s2) == 0 || atoi(s3) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else
 							{
 								sprintf(split, "250-Cylinder %f (%f)",(atof(s2)*6.283*atof(s3) + 6.283*atof(s2)*atof(s2)),atof(s3) );
-									if (send(new_fd, split, 40 , 0) == -1)
+									if (SSL_write(ssl, split, 40) == -1)
 										perror("send");
 							}
 						}
 						else
 						{
 							sprintf(split, "503-Out of Order");
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 						}
 					}
@@ -339,19 +335,19 @@ int main(int argc, char *args[])
 						if(state == 2){
 							char* s2 = strtok(NULL, " ");
 							if(atoi(s2) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else{
 								sprintf(split, "250-Circle's Circumference %f", (sqrt(atof(s2)/3.1415) * 4/3 ) );
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 							}
 						}
 
 						else{
 							sprintf(split, "503-Out of Order");
-							if (send(new_fd, split, 40 , 0) == -1)
+							if (SSL_write(ssl, split, 40) == -1)
 								perror("send");
 						}
 					}
@@ -360,20 +356,20 @@ int main(int argc, char *args[])
 						if(state == 3){
 							char* s2 = strtok(NULL, " ");
 							if(atoi(s2) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else
 							{  
 								sprintf(split, "250-Sphere's Volume %f", (4/3 * 3.1415 * atof(s2) * atof(s2) * atof(s2)));
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 							}
 						}
 
 						else{
 							sprintf(split, "503-Out of Order");
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 						}
 					}
@@ -383,13 +379,13 @@ int main(int argc, char *args[])
 							char* s2 = strtok(NULL, " ");
 				
 							if(atoi(s2) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else
 							{  
 								sprintf(split, "250-Sphere's Radius %f", (1/2 * sqrt(atof(s2) / 3.1415) ));
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 							}
 						}
@@ -397,7 +393,7 @@ int main(int argc, char *args[])
 						else
 						{
 							sprintf(split, "503-Out of Order");
-							if (send(new_fd, split, 40 , 0) == -1)
+							if (SSL_write(ssl, split, 40) == -1)
 							perror("send");
 						}
 					}
@@ -407,31 +403,31 @@ int main(int argc, char *args[])
 							char* s2 = strtok(NULL, " ");
 							char* s3 = strtok(NULL, " ");
 							if(atoi(s2) == 0 || atoi(s3) == 0){
-								if (send(new_fd, "501-Error in args, values must be nonzero", 40 , 0) == -1)
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
 							else
 							{  
 								sprintf(split, "250-Cylinder's Height %f", (atof(s2) / (atof(s3) * atof(s3) * 3.1415)));
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 							}
 						}
 
 						else{
 							sprintf(split, "503-Out of Order");
-								if (send(new_fd, split, 40 , 0) == -1)
+								if (SSL_write(ssl, split, 40) == -1)
 									perror("send");
 						}
 					}
 					else if(strcmp(split, "AUTH") == 0){
-						if (send(new_fd, "200 - Already Authenticated", 50 , 0) == -1)
+						if (SSL_write(ssl, "200 - Already Authenticated", 50) == -1)
 							perror("send");
 
 					}
 					else
 					{
-						if (send(new_fd, "500 - Unrecognized Command or missing args", 50 , 0) == -1)
+						if (SSL_write(ssl, "500 - Unrecognized Command or missing args", 50) == -1)
 							perror("send");
 					}//end else
 				}//end if-else-if-else
