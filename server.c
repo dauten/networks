@@ -19,40 +19,11 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <math.h>
-
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "openssl/bio.h"
 
-#define BACKLOG 10     // how many pending connections queue will hold
-void init_openssl()
-{ 
-
-    SSL_load_error_strings();	
-    OpenSSL_add_ssl_algorithms();
-}
-
-void cleanup_openssl()
-{
-    EVP_cleanup();
-}
-
-SSL_CTX *create_context()
-{
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
-
-    method = SSLv23_server_method();  
-
-    ctx = SSL_CTX_new(method);
-    if (!ctx) {
-	perror("Unable to create SSL context");
-	ERR_print_errors_fp(stderr);
-	exit(EXIT_FAILURE);
-    }
-
-    return ctx;
-}
+#include <openssl/x509v3.h> 
 
 void configure_context(SSL_CTX *ctx)
 {
@@ -145,7 +116,7 @@ int main(int argc, char *args[])
 		exit(1);
 	}
 
-	if (listen(sockfd, BACKLOG) == -1) {
+	if (listen(sockfd, 10) == -1) {
 		perror("listen");
 		exit(1);
 	}
@@ -156,9 +127,39 @@ int main(int argc, char *args[])
 		exit(1);
 	}
 
-	SSL_load_error_strings();
-	ERR_load_BIO_strings();
-	OpenSSL_add_all_algorithms();
+
+
+
+	SSL_CTX *ctx;                                                                                                                          
+    SSL_library_init();
+ 
+	/* init */                                                                                                                             
+	SSL_load_error_strings();                                                                                                              
+	OpenSSL_add_all_algorithms();                                                                                                          
+
+	
+	if (!(ctx = SSL_CTX_new(TLSv1_2_server_method() ))) {                                                                                                    
+	exit(1);                                                                                                                             
+	}
+
+	/* configure context */                                                                                                                
+	//  SSL_CTX_set_ecdh_auto(ctx, 1);
+
+	/* Set the key and cert */                                                                                                             
+	if (SSL_CTX_use_certificate_file(ctx, "example.crt", SSL_FILETYPE_PEM) <= 0) {                                                            
+	exit(1);
+	}
+
+	if (SSL_CTX_use_PrivateKey_file(ctx, "fd.key", SSL_FILETYPE_PEM) <= 0) {                                                              
+	exit(1);
+	}                                                                                                                                      
+
+	/* verify private key */
+	if ( !SSL_CTX_check_private_key(ctx) )
+	{
+	fprintf(stderr, "Private key does not match the public certificate\n");
+	abort();
+	}
 
 
 	while(1) 
@@ -172,33 +173,59 @@ int main(int argc, char *args[])
 			continue;
 		}
 
-		SSL_CTX *ctx;
-		SSL *ssl;
+		char buf[100];
 
-		init_openssl();
-		ctx = create_context();
-		configure_context(ctx);
+		memcpy(buf, "this is sent securely", 64);
 
-		ssl=SSL_new(ctx);
-		SSL_set_fd(ssl, new_fd);
+		printf("socket formed and connected, negotiating ssl...\n");
+		SSL *ssl;			                                                            
+		/* create ssl instance from context */                                                                                               
+		ssl = SSL_new(ctx);
+		if(ssl) printf("ssl made\n");
+		/* assign socket to ssl intance */                                                                                                   
+		SSL_set_fd(ssl, new_fd);                                                                                                             
+
+                                                                                       
+  		  if ( SSL_accept(ssl) == -1 )     /* do SSL-protocol accept */
+   		     ERR_print_errors_fp(stderr);                                                                                                                   
+		/* perform ssl reads / writes */
 
 
-		if (SSL_accept(ssl) <= 0) {
-		    printf("Failed to accept ssl?\n");
-		    ERR_print_errors_fp(stderr);
+		X509 *cert;
+		char *line;
+
+		cert = SSL_get_peer_certificate(ssl); /* Get certificates (if available) */
+		if ( cert != NULL )
+		{
+		printf("Server certificates:\n");
+		line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+		printf("Subject: %s\n", line);
+		free(line);
+		line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+		printf("Issuer: %s\n", line);
+		free(line);
+		X509_free(cert);
 		}
-		else {
-		    SSL_write(ssl, "We are responding securely", strlen("We are responding securely"));
-		}
+		else
+		printf("No certificates.\n");
 
+
+		printf("READING FROM SSL: \n");
+		SSL_read(ssl, buf, sizeof(buf));
+
+            printf("Client msg: \"%s\"\n", buf);
+            SSL_write(ssl, buf, strlen(buf)); 
+
+
+		/* free ssl instance */
 		SSL_free(ssl);
-		
+
+
 
 		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr),s, sizeof s);
 		printf("server: got connection from %s\n", s);
 
-		char buf[100];
-
+	
 
 		if (!fork()) { // this is the child process
 			close(sockfd); // child doesn't need the listener

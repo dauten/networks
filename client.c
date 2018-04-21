@@ -18,13 +18,12 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-
-
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "openssl/bio.h"
 #include <arpa/inet.h>
 
+#include <openssl/x509v3.h>
 
 //function from beej's guide
 void *get_in_addr(struct sockaddr *sa)
@@ -87,9 +86,68 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(servinfo);
 
+	SSL *ssl;
+	SSL_CTX *ctx;
+	const SSL_METHOD *method;
+	X509_VERIFY_PARAM *param;
 
-	send(tcpSock, "HANDSHAKE", 16, 0);
+	/* init */
+    SSL_library_init();
+ 
+	SSL_load_error_strings();
+	OpenSSL_add_all_algorithms();
+
+	/* create context */
+	method = TLSv1_2_client_method();
+
+	if (!(ctx = SSL_CTX_new(method))) {
+	exit(1);
+	}
+
+
+
+/* create ssl instance from context */
+	ssl = SSL_new(ctx);
+	if(ssl) printf("ssl made\n");
+
+   X509 *cert;
+    char *line;
+ 
+    cert = SSL_get_peer_certificate(ssl); /* get the server's certificate */
+    if ( cert != NULL )
+    {
+        printf("Server certificates:\n");
+        line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+        printf("Subject: %s\n", line);
+        free(line);       /* free the malloc'ed string */
+        line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+        printf("Issuer: %s\n", line);
+        free(line);       /* free the malloc'ed string */
+        X509_free(cert);     /* free the malloc'ed certificate copy */
+    }
+    else
+        printf("Info: No client certificates configured.\n");
+
+
+
+	SSL_write(ssl, "FUCK YOU", 128);
 	
+	
+
+	SSL_read(ssl, input, 64);
+SSL_read(ssl, input, 64);
+	printf("FROM SSL: %s\n", input);
+
+
+
+
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
+	EVP_cleanup();
+
+
+	
+	send(tcpSock, "$$$$$$$$", 9, 0);
 	char* split;
 	char msg[10];
 
@@ -98,7 +156,7 @@ int main(int argc, char *argv[])
 
 	while(flag)
 	{
-		recv(tcpSock, input, 100, 0);
+		recv(tcpSock, input, 512, 0);
 	//	buf[numbytes] = '\0';
 		printf("client: received '%s'\n",input);
 		memcpy(msg, input, 64);
