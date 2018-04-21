@@ -96,11 +96,8 @@ int main(int argc, char *argv[])
 		printf("Unable to obtain certificate\n");
 	}
 
-	printf("We recieved over TLS: %s\nWe should be connected and ready to send encypted messages now\n");
+	printf("We should be connected and ready to send encypted messages now\n");
 
-
-	
-	SSL_write(ssl, "HANDSHAKE", 64);
 	char* split;
 	char msg[10];
 
@@ -109,7 +106,7 @@ int main(int argc, char *argv[])
 
 	while(flag)
 	{
-		SSL_write(ssl, input, 512);
+		SSL_read(ssl, input, 512);
 	//	buf[numbytes] = '\0';
 		printf("client: received '%s'\n",input);
 		memcpy(msg, input, 64);
@@ -125,9 +122,7 @@ int main(int argc, char *argv[])
 		fgets(input, 64, stdin);
 		for(int i = 0; i < 64; i++){
 			if(input[i] == '\n'){
-				input[i] = ' ';
-				input[i+1] = '\n';
-				input[i+2] = '\0';
+				input[i] = '\0';
 				i = 64;
 				break;
 			}

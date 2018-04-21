@@ -203,7 +203,10 @@ int main(int argc, char *args[])
 								perror("send");
 							SSL_read(ssl, buf, 100);
 							printf("recieved: '%s'(hope its pw)\n", buf);
-							if( strcmp(buf, password)==0 ){
+							char tmpbuf[64];
+							sprintf(tmpbuf, "NDQ3%s", buf); 
+							printf("recieved: '%s'(hope its pw)\n", tmpbuf);
+							if( strcmp(tmpbuf, password)==0 ){
 								flag=0;
 								SSL_write(ssl, "PASSWORD CORRECT, WELCOME", 50);
 								break;
@@ -220,7 +223,7 @@ int main(int argc, char *args[])
 						r=(r%99999);
 						sprintf(write, "330 %d reconnect with AUTH again", r);
 						SSL_write(ssl, write, 36);
-						sprintf(password, "%d", r);
+						sprintf(password, "447%d", r);
 						BIO *bmem, *b64;
 						BUF_MEM *bptr;
 						b64 = BIO_new(BIO_f_base64());
