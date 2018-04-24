@@ -74,6 +74,7 @@ int main(int argc, char *args[])
 	int rv;
 
 
+
 	//check that the user included arguments then copy them into our ports
 	if(argc != 2){
 		printf("usage: server <tcp port>\n");
@@ -187,7 +188,7 @@ int main(int argc, char *args[])
 
 		if (!fork()) { // this is the child process
 			close(sockfd); // child doesn't need the listener
-			printf("about to enter loop\n");
+			printf("==Process Forked==\n");
 			int state = 0; //0=default, 1=connected, 2=circle, 3=sphere, 4=cylinder
 			char* split;
 			if (SSL_write(ssl, "201 HELO RDY", 13) == -1)
@@ -196,28 +197,30 @@ int main(int argc, char *args[])
 			char password[64];
 			char write[128];
 			int flag = 1;
+					
+			time_t t;
+			srand( (unsigned) time(&t));
 			while(flag){
 				numbytes = SSL_read(ssl, buf, 100);
-				printf("recieved: '%s'(hope its auth)\n", buf);
+				printf("recieved: '%s'\n", buf);
 				if(strcmp(buf, "AUTH") == 0){
 
 					SSL_write(ssl, "334 dXNlcm5hbWU6", 50);
 					SSL_read(ssl, buf, 100);
-					printf("recieved: '%s'(hope its un)\n", buf);
+					printf("recieved: '%s'\n", buf);
 					FILE *ifp, *ofp;
 					char *mode = "a+";
 					ifp = fopen(".user_pass", mode);
 					while (fscanf(ifp, "%s %s", username, password) != EOF) {
 						
-						printf("The cmp of %s and %s is %d\n", username, buf, strcmp(buf, username));
 						if(strcmp(buf, username) == 0){
 							if (SSL_write(ssl, "334 cGFzc3dvcmQ6", 50) == -1)
 								perror("send");
 							SSL_read(ssl, buf, 100);
-							printf("recieved: '%s'(hope its pw)\n", buf);
 							char tmpbuf[64];
 							sprintf(tmpbuf, "NDQ3%s", buf); 
-							printf("recieved: '%s'(hope its pw)\n", tmpbuf);
+							printf("recieved: '%s'\n", tmpbuf);
+							SHA1ToString(tmpbuf, tmpbuf);
 							if( strcmp(tmpbuf, password)==0 ){
 								flag=0;
 								SSL_write(ssl, "PASSWORD CORRECT, WELCOME", 50);
@@ -253,8 +256,6 @@ int main(int argc, char *args[])
 						
 						printf("We will append '%s' to user_pass\n", write);
 						fprintf(ifp, write);
-						//next we write that stuff to .user_pass
-						//functionality coming later, comrade
 					}
 					if(flag==2) flag=1;
 					fclose(ifp);
