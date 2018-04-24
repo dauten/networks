@@ -25,6 +25,18 @@
 
 #include <openssl/x509v3.h> 
 
+//takes a string and converts it to a string of its SHA1 digest
+void SHA1ToString(char* str, char targ[]){
+	char st[200];
+	unsigned char hash[SHA_DIGEST_LENGTH];
+	SHA1(str, strlen(str), hash);
+	sprintf(st, "");
+	for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
+		sprintf(st, "%s%02x", st, hash[i]);
+	}	
+	memcpy(targ, st, 200);
+
+}
 
 //two functions from beej's guide
 void sigchld_handler(int s)
@@ -236,8 +248,9 @@ int main(int argc, char *args[])
 						memcpy(buff, bptr->data, bptr->length-1);
 						buff[bptr->length-1] = 0;
 						BIO_free_all(b64);
+						SHA1ToString(buff, buff);
 						sprintf(write, "%s %s\n",buf, buff);
-
+						
 						printf("We will append '%s' to user_pass\n", write);
 						fprintf(ifp, write);
 						//next we write that stuff to .user_pass

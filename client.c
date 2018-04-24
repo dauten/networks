@@ -25,6 +25,18 @@
 #include <openssl/sha.h>
 #include <openssl/x509v3.h>
 
+//takes a string and converts it to a string of its SHA1 digest
+void SHA1ToString(char* str, char targ[]){
+	char st[200];
+	unsigned char hash[SHA_DIGEST_LENGTH];
+	SHA1(str, strlen(str), hash);
+	sprintf(st, "");
+	for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
+		sprintf(st, "%s%02x", st, hash[i]);
+	}	
+	memcpy(targ, st, 200);
+
+}
 
 int main(int argc, char *argv[])
 {
@@ -39,15 +51,7 @@ int main(int argc, char *argv[])
 	char input[64];
 	int flag = 1;
 
-	//hash demo
-	char *str = "Hashed String";
-	SHA_CTX ctx;
-	SHA1_Init(&ctx);
-	SHA1_Update(&ctx, str, sizeof(str));
-	unsigned char hash[SHA_DIGEST_LENGTH];
-	SHA1_Final(hash, &ctx);
-	printf("Got the hash: %02x %02x\n", hash[0], hash[1]);
-	
+
 	// check if user gave needed args
 	if (argc != 3) {
 		fprintf(stderr,"usage: client <hostname> <port>\n");
