@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	char s[INET6_ADDRSTRLEN];
 	char *SERVER = argv[1];
 	uint PORT = atoi(argv[2]);
-	char input[64];
+	char input[128];
 	int flag = 1;
 
 
@@ -126,15 +126,21 @@ int main(int argc, char *argv[])
 	while(flag)
 	{
 		//get and print input, copy it into a temp and tokenize it.
-		SSL_read(ssl, input, 512);
+		SSL_read(ssl, input, 128);
 		printf("client: received '%s'\n",input);
-		memcpy(msg, input, 64);
-		split = strtok(msg, " ");
 
 		//if permission to leave
 		if(strcmp(input, "200 BYE")==0){
 			flag=0;
+			close(tcpSock);
+
+			return 0;
 		}
+
+		memcpy(msg, input, 64);
+		split = strtok(msg, " ");
+
+
 
 
 		//right now get our reply from user and format to remove endline (\n is messy for our parsing)

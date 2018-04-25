@@ -334,30 +334,29 @@ int main(int argc, char *args[])
 					}	
 					else if(  strcmp(split, "CIRCLE") == 0)
 					{
-						if (SSL_write(ssl, "210 CIRCLE ready", 10) == -1)
+						if (SSL_write(ssl, "210 CIRCLE ready", 20) == -1)
 							perror("send");
 						state = 2;
 					}
 					else if(  strcmp(split, "SPHERE") == 0)
 					{
-						if (SSL_write(ssl, "220 SPHERE ready", 10) == -1)
+						if (SSL_write(ssl, "220 SPHERE ready", 20) == -1)
 							perror("send");
 						state = 3;
 					}
 					else if(  strcmp(split, "CYLINDER") == 0)
 					{
-						if (SSL_write(ssl, "230 CYLINDER ready", 12) == -1)
+						if (SSL_write(ssl, "230 CYLINDER ready", 20) == -1)
 							perror("send");
 						state = 4;
 					}
 					else if(  strcmp(split, "AREA") == 0 )
 					{
 						if(state == 2){
-
 							char* s2 = strtok(NULL, " ");
-
-							if(atoi(s2) == 0){
-								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
+							printf("s2 is %s, as a number %d\n", s2,s2);
+							if(s2 == 0 || atoi(s2) == 0){
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 64) == -1)
 									perror("send");
 							}
 							else
@@ -371,8 +370,8 @@ int main(int argc, char *args[])
 							char* s2 = strtok(NULL, " ");
 							char* s3 = strtok(NULL, " ");
 							printf(":%f:", atof(s2));
-							if(atoi(s2) == 0 || atoi(s3) == 0){
-								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
+							if(!s2 || !s3 || atoi(s2) == 0 || atoi(s3) == 0){
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 64) == -1)
 									perror("send");
 							}
 							else
@@ -393,7 +392,7 @@ int main(int argc, char *args[])
 					{
 						if(state == 2){
 							char* s2 = strtok(NULL, " ");
-							if(atoi(s2) == 0){
+							if(!s2 || atoi(s2) == 0){
 								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
@@ -414,7 +413,7 @@ int main(int argc, char *args[])
 					{
 						if(state == 3){
 							char* s2 = strtok(NULL, " ");
-							if(atoi(s2) == 0){
+							if(!s2 || atoi(s2) == 0){
 								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
@@ -436,8 +435,8 @@ int main(int argc, char *args[])
 					{
 						if(state == 3){
 							char* s2 = strtok(NULL, " ");
-				
-							if(atoi(s2) == 0){
+							
+							if(!s2 || atoi(s2) == 0){
 								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
 									perror("send");
 							}
@@ -461,8 +460,8 @@ int main(int argc, char *args[])
 						if(state == 4){
 							char* s2 = strtok(NULL, " ");
 							char* s3 = strtok(NULL, " ");
-							if(atoi(s2) == 0 || atoi(s3) == 0){
-								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 40) == -1)
+							if(!s2 || !s3 || atoi(s2) == 0 || atoi(s3) == 0){
+								if (SSL_write(ssl, "501-Error in args, values must be nonzero", 64) == -1)
 									perror("send");
 							}
 							else
@@ -486,7 +485,7 @@ int main(int argc, char *args[])
 					}
 					else
 					{
-						if (SSL_write(ssl, "500 - Unrecognized Command or missing args", 50) == -1)
+						if (SSL_write(ssl, "500 - Unrecognized Command or missing args", 80) == -1)
 							perror("send");
 					}//end else
 				}//end if-else-if-else
