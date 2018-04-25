@@ -27,14 +27,15 @@
 
 //takes a string and converts it to a string of its SHA1 digest
 void SHA1ToString(char* str, char targ[]){
-	char st[200];
+
 	unsigned char hash[SHA_DIGEST_LENGTH];
-	SHA1(str, strlen(str), hash);
-	sprintf(st, "");
+	
+	SHA1(str, strlen(str), hash);	//apply SHA to input string storing digest in buffer
+	sprintf(targ, "");		//instantiate empty string array
 	for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
-		sprintf(st, "%s%02x", st, hash[i]);
+		//iterate through ther digest translating it from hex to the corresponding ASCII in our destination
+		sprintf(targ, "%s%02x", targ, hash[i]);
 	}	
-	memcpy(targ, st, 200);
 
 }
 
@@ -78,6 +79,9 @@ int main(int argc, char *argv[])
 		abort();
 	}
 
+
+	//now socket is set up.  We'll inform user SSL time is now and use socket to make secure connection
+
 	printf("About to configure and negotiate SSL\n");
 
 	// create variables and load in openssl
@@ -109,6 +113,8 @@ int main(int argc, char *argv[])
 		printf("Unable to obtain certificate\n");
 	}
 
+	//as stated above, we are good to go if there were no error messages.  even if there was an error we won't
+	//exit but things would break later
 	printf("We should be connected and ready to send encypted messages now\n");
 
 	char* split;
@@ -116,21 +122,22 @@ int main(int argc, char *argv[])
 
 
 
-
+	//main listen/reply loop
 	while(flag)
 	{
+		//get and print input, copy it into a temp and tokenize it.
 		SSL_read(ssl, input, 512);
-	//	buf[numbytes] = '\0';
 		printf("client: received '%s'\n",input);
 		memcpy(msg, input, 64);
 		split = strtok(msg, " ");
 
+		//if permission to leave
 		if(strcmp(input, "200 BYE")==0){
 			flag=0;
 		}
 
 
-		//input
+		//right now get our reply from user and format to remove endline (\n is messy for our parsing)
 		printf("input:\n");
 		fgets(input, 64, stdin);
 		for(int i = 0; i < 64; i++){
@@ -140,11 +147,17 @@ int main(int argc, char *argv[])
 				break;
 			}
 		} //end for
+
+		//if server told us to reply with a username or password we need to encode it before we send it
 		if(strcmp(split, "334")==0){
+
+			//for more comments see encoding section in server.
+			//general idea is we make a pipe with memory and an encoding function
+			//that we'll push our username/password through and it'll spit
+			//out it in base64
 			split = strtok(input, " ");
 			BIO *bmem, *b64;
 			BUF_MEM *bptr;
-
 			b64 = BIO_new(BIO_f_base64());
 			bmem = BIO_new(BIO_s_mem());
 			b64 = BIO_push(b64, bmem);
